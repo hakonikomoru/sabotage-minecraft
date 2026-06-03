@@ -1,0 +1,14 @@
+{
+  "name": "sabotage-minecraft",
+  "version": "0.1.0",
+  "private": true,
+  "description": "YouTube live chat integration for Minecraft Bedrock sabotage mini-game",
+  "scripts": {
+    "sync:project-docs": "node scripts/sync-project-docs.mjs",
+    "sync:project-docs:check": "node scripts/sync-project-docs.mjs --check",
+    "bridge:install": "npm install --prefix bridge",
+    "bridge:build": "npm run build --prefix bridge",
+    "bridge:dev": "npm run dev --prefix bridge",
+    "bridge:start": "npm run start --prefix bridge"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "repo": "hakonikomoru/sabotage-minecraft",
+  "rootLabel": "sabotage-minecraft",
+  "treeMaxDepth": 2,
+  "markers": [
+    "meta",
+    "directory-tree"
+  ],
+  "treeEntries": [
+    "docs"
+  ]
+}

@@ -64,6 +64,18 @@ export const CONFIG = {
   admin: {
     playerNames: [],
   },
+
+  /** 将来: 名前付きアイテムメニュー（MVP では未実装） */
+  menuItems: {
+    clock: "SAB:menu",
+    start: "SAB:start",
+    stop: "SAB:stop",
+    pause: "SAB:pause",
+    resume: "SAB:resume",
+    status: "SAB:status",
+    clear: "SAB:clear",
+    reset: "SAB:reset",
+  },
 };
 
 export const MODE_DISPLAY_NAMES = {

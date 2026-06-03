@@ -1,10 +1,37 @@
 # ゲーム設計 — 妨害マイクラ
 
+**制作:** komolab - こもらぼ -
+
 ## コンセプト
 
 **コメントで世界が壊れる妨害マイクラ**
 
-YouTube ライブ視聴者がコメントで 10 分ブロック埋め系チャレンジを妨害・応援する参加型ミニゲーム。
+YouTube / Twitch ライブ視聴者がコメントで 10 分ブロック埋め系チャレンジを妨害・応援する参加型ミニゲーム。
+
+配信向けの世界観説明: [worldview.md](./worldview.md)
+
+---
+
+## 座標・フィールド設計（配布前提）
+
+| 方針 | 内容 |
+|------|------|
+| 固定座標 | **禁止** — ワールドごとに座標が違うため |
+| 生成基準 | `!sab start` を実行した **プレイヤーの現在位置** |
+| 安全確認 | 生成前に 12×12 範囲をスキャン。上書き不可ブロックがあれば中止 |
+| 範囲記録 | `state.field` に origin / structureSize / originalBlocks を保存 |
+| リセット | `!sab reset` で **生成範囲のみ** 元のブロック状態に復元 |
+| 範囲外 | フィールド外のブロックは **一切変更しない** |
+
+### MVP に入れない（locate / 自動 TP 系）
+
+```txt
+- locate コマンドの自動実行
+- 構造物座標の自動取得
+- 自動 TP 前提のゲーム進行
+```
+
+代わりに `!sab start` した場所にフィールドを出す。
 
 ---
 
@@ -82,6 +109,25 @@ Y = 黄色コンクリート / B = 黒コンクリート / 内側10×10が判定
 !sab start | start defend | mode | stop | pause | resume | status | clear | reset
 !sab test slow | blind | chicken | hole | block
 ```
+
+### 将来: 名前付きアイテムメニュー（MVP 未実装）
+
+チャットの代わりに **名前付きアイテム** で同じ操作を行う案。`config.js` の `menuItems` に定義済み。
+
+| 表示名 | 操作 |
+|--------|------|
+| `SAB:menu` | 時計 — コマンド一覧表示 |
+| `SAB:start` | ゲーム開始 |
+| `SAB:stop` | 停止 |
+| `SAB:pause` | 一時停止 |
+| `SAB:resume` | 再開 |
+| `SAB:status` | 状態表示 |
+| `SAB:clear` | イベントキュークリア |
+| `SAB:reset` | フィールド復元 + 状態リセット |
+
+MVP ではチャットコマンドのみ。配信オペレーションが安定したらアイテム操作を追加。
+
+---
 
 ### status 表示例（fill_and_defend）
 
@@ -161,9 +207,26 @@ Bridge接続：OK
 ### 将来モード（未実装）
 
 ```txt
-vote_event       — 3択投票で妨害決定（TwitchControlsMinecraft 参考）
-random_roulette  — Super Chat / ギフトでルーレット（CC 参考）
+vote_event         — 3択投票で妨害決定（TwitchControlsMinecraft 参考）
+random_roulette    — Super Chat / Bits で演出ルーレット（CC 参考）
+wolf_capture_race  — オオカミ100匹捕獲レース（下記）
 ```
+
+---
+
+## 将来モード: wolf_capture_race（MVP 未実装）
+
+**モード ID:** `wolf_capture_race`
+
+| 項目 | 内容 |
+|------|------|
+| 概要 | 各プレイヤーごとに 30×30 の羊毛箱部屋を生成し、100 匹のオオカミを最速で全捕獲した順位を競う |
+| 部屋 | プレイヤーごとに **羊毛色を分けた** 30×30 箱部屋 |
+| オオカミ | 各部屋に **100 匹** 配置 |
+| 納品 | 部屋色と揃えた色の **シュルカーボックス** を納品場所に配置 |
+| 連動 | 将来 YouTube / Twitch 妨害イベントにも対応可能な設計にする |
+
+fill 系モード（YouTube/Twitch 連動 MVP）が安定してから着手。
 
 ---
 

@@ -34,3 +34,12 @@ export function forEachInnerCell(field, callback) {
     }
   }
 }
+
+export function forEachStructureCell(field, callback) {
+  const structureSize = field.structureSize ?? (field.size ?? 10) + 2;
+  for (let dx = 0; dx < structureSize; dx++) {
+    for (let dz = 0; dz < structureSize; dz++) {
+      callback(field.originX + dx, field.y, field.originZ + dz);
+    }
+  }
+}

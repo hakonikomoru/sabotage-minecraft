@@ -191,21 +191,23 @@
 
 ---
 
-## sabotage-minecraft 反映一覧（実装済み / 予定）
+# sabotage-minecraft 反映一覧（実装済み / 予定）
 
-### 実装済み（本 PR）
+### 実装済み
 
 - [x] `docs/research-java-oss.md`（本ファイル）
 - [x] `bridge/src/effects/registry.ts` — category / risk / enabled / cooldown
-- [x] `bridge/src/types.ts` — `StreamPlatform`, `StreamEvent`
+- [x] `bridge/src/types.ts` — `StreamPlatform`, `NormalizedStreamEvent`
+- [x] `bridge/src/platforms/` — youtube / twitch / debug 拡張可能構成
 - [x] `addon/.../effects/registry.js` — Bedrock 側ミラー
-- [x] `config.js` / Bridge config — effects 設定
+- [x] debug endpoint → Minecraft 連携（MVP 第一ゴール）
 
 ### 将来
 
 - [ ] `vote_event` モード
-- [ ] `random_roulette` モード（Super Chat 連動）
-- [ ] TikTok / Twitch adapter（公式 or ポリシー確認後）
+- [ ] `random_roulette` モード（Super Chat / Bits）
+- [ ] Twitch EventSub 実装
+- [ ] `wolf_capture_race` モード
 - [ ] OBS overlay（`GameSnapshot` 拡張）
 
 ---

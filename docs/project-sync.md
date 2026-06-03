@@ -12,6 +12,7 @@
 |------|------|
 | Repository | `sabotage-minecraft` |
 | 配信企画名 | コメントで世界が壊れる妨害マイクラ |
+| 制作 | komolab - こもらぼ - |
 | ローカルパス | `/Users/ebata/app/sabotage-minecraft` |
 | 前提 | Bedrock Dedicated Server 専用 |
 
@@ -50,13 +51,16 @@ Minecraft Addon はプラットフォーム非依存（`SabotageEvent` のみ処
 - [x] 妨害 5 種 + イベントキュー
 - [x] **`getGameSnapshot()`**（OBS 将来用）
 - [x] **Java OSS 調査** + 効果 registry（category / risk / enabled）
-- [x] **StreamPlatform / StreamEvent** 抽象化（Bridge）
+- [x] **StreamPlatform / NormalizedStreamEvent** 抽象化（Bridge）
+- [x] **配布向け座標設計** — プレイヤー位置基準 / 安全確認 / `!sab reset` で地形復元
+- [x] README / worldview / addon-description 分離
 
 ### 未実装（MVP 後）
 
 - [ ] Super Chat / メンバーイベント
-- [ ] Twitch EventSub 実装（[twitch-setup.md](./twitch-setup.md)）
-- [ ] `vote_event` / `random_roulette` モード
+- [ ] Twitch EventSub 実装（[twitch-api-setup.md](./twitch-api-setup.md)）
+- [ ] `vote_event` / `random_roulette` / `wolf_capture_race` モード
+- [ ] 名前付きアイテムメニュー（`SAB:start` 等）
 
 ## 5. ディレクトリ構成
 
@@ -73,14 +77,19 @@ sabotage-minecraft/
 
 - OAuth / API キーは Bridge のみ（Addon には `apiKey` のみ）
 - `@minecraft/server-net` は BDS 専用 — Realms 非対応
+- **固定座標禁止** — `!sab start` 位置基準。locate / 自動 TP は MVP 外
 - 強妨害（TNT / クリーパー等）は MVP では未実装
 - debug endpoint は本番（`NODE_ENV=production`）では 404
+- MVP 第一ゴール: debug endpoint → Minecraft 発動（YouTube はその後）
+- ローカル env: `bridge/.env`（`.gitignore` — `.env.example` から作成）
 
 ## 7. 関連ドキュメント
 
+- [worldview.md](./worldview.md) — 配信企画・世界観
+- [addon-description.md](./addon-description.md) — 配布・紹介文
 - [game-design.md](./game-design.md)
+- [bds-setup.md](./bds-setup.md) — コマンド一覧・配信前チェック
 - [research-java-oss.md](./research-java-oss.md)
-- [twitch-setup.md](./twitch-setup.md)
 - [youtube-api-setup.md](./youtube-api-setup.md)
-- [bds-setup.md](./bds-setup.md)
+- [twitch-api-setup.md](./twitch-api-setup.md)
 - [safety-policy.md](./safety-policy.md)

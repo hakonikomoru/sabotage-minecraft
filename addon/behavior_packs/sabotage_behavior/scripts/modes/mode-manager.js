@@ -16,7 +16,7 @@ import {
 import { getModeConfig } from "./mode-config.js";
 import {
   buildField,
-  resetFieldToBase,
+  destroyField,
   teleportToFieldStart,
 } from "./fill-field.js";
 import {
@@ -73,6 +73,10 @@ async function setupFillGame(player, modeId, startMessages) {
 
   const cfg = getModeConfig(modeId);
   const field = buildField(player, modeId);
+  if (field?.error) {
+    broadcast(field.error);
+    return null;
+  }
   removeWhiteWoolFromInventory(player);
   giveWhiteWool(player, cfg.initialWoolAmount);
   teleportToFieldStart(player, field);
@@ -139,7 +143,12 @@ export function resetGame() {
   eventQueue.clear();
   const field = getField();
   if (field) {
-    resetFieldToBase(field);
+    const restored = destroyField(field);
+    if (restored) {
+      broadcast("生成したフィールド範囲を元の地形に戻しました");
+    } else {
+      broadcast("フィールド情報が不完全なため、状態のみリセットしました");
+    }
   }
   clearField();
   resetState();

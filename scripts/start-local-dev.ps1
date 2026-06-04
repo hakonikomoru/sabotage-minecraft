@@ -2,6 +2,7 @@
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $bdsRoot = Join-Path $repoRoot "bds"
 $bdsExe = Join-Path $bdsRoot "bedrock_server.exe"
+$statePath = Join-Path $repoRoot ".dev-local.json"
 
 if (-not (Test-Path $bdsExe)) {
   Write-Error "BDS not found: $bdsExe"
@@ -9,17 +10,24 @@ if (-not (Test-Path $bdsExe)) {
 }
 
 Write-Host "Starting Bridge in a new window (port 8787)..."
-Start-Process powershell `
+$bridgeShell = Start-Process powershell `
   -WorkingDirectory $repoRoot `
-  -ArgumentList "-NoExit", "-Command", "npm run bridge:dev"
+  -PassThru `
+  -ArgumentList "-NoLogo", "-Command", "`$Host.UI.RawUI.WindowTitle='SAB-Bridge'; npm run bridge:dev"
 
 Start-Sleep -Seconds 1
 
 Write-Host "Starting BDS in a new window (port 19132)..."
-Start-Process powershell `
+$bdsShell = Start-Process powershell `
   -WorkingDirectory $bdsRoot `
-  -ArgumentList "-NoExit", "-Command", ".\bedrock_server.exe"
+  -PassThru `
+  -ArgumentList "-NoLogo", "-Command", "`$Host.UI.RawUI.WindowTitle='SAB-BDS'; .\bedrock_server.exe"
 
-Write-Host ""
+@{
+  bridgeShellPid = $bridgeShell.Id
+  bdsShellPid = $bdsShell.Id
+  startedAt = (Get-Date).ToString("o")
+} | ConvertTo-Json | Set-Content -Path $statePath -Encoding utf8
+
 Write-Host "Done. Connect in Minecraft: 127.0.0.1:19132"
-Write-Host "Stop each server with Ctrl+C in its window."
+Write-Host "Stop servers and close windows: npm run dev:local:stop"

@@ -10,6 +10,7 @@
     "bridge:build": "npm run build --prefix bridge",
     "bridge:dev": "npm run dev --prefix bridge",
     "bridge:start": "npm run start --prefix bridge",
-    "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/start-local-dev.ps1"
+    "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/start-local-dev.ps1",
+    "dev:local:stop": "powershell -ExecutionPolicy Bypass -File scripts/stop-local-dev.ps1"
   }
 }

@@ -1,5 +1,6 @@
 node_modules/
 bds/
+.dev-local.json
 .env
 *.log
 bridge/dist/

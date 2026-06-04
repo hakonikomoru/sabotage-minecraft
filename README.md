@@ -105,7 +105,7 @@ npm run dev:local
 | Bridge | 新しい PowerShell → `npm run bridge:dev`（ポート 8787） |
 | BDS | 新しい PowerShell → `bds/bedrock_server.exe`（ポート 19132） |
 | マイクラ接続 | サーバー追加 → `127.0.0.1` / ポート `19132` |
-| 終了 | 各ウィンドウで Ctrl+C |
+| 終了 | `npm run dev:local:stop`（サーバー停止 + 起動ウィンドウを閉じる） |
 
 実装: [`scripts/start-local-dev.ps1`](scripts/start-local-dev.ps1)
 
@@ -243,6 +243,7 @@ Bridge ログの目安:
 ```bash
 npm run bridge:build          # TypeScript コンパイル
 npm run dev:local             # Windows: Bridge + BDS 一括起動
+npm run dev:local:stop        # Windows: Bridge + BDS 一括停止
 npm run sync:project-docs     # docs/project-sync.md 更新
 npm run sync:project-docs:check  # CI 用
 ```

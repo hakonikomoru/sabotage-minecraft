@@ -4,7 +4,7 @@
 > 人間向けの概要は [README.md](../README.md)、配信向け説明は [worldview.md](./worldview.md)。
 
 <!-- sync:auto:meta:start -->
-最終更新の想定リポジトリ: `hakonikomoru/sabotage-minecraft`（`main`・`29ff7d0`・2026-06-04・`npm run sync:project-docs` 自動反映）
+最終更新の想定リポジトリ: `hakonikomoru/sabotage-minecraft`（`main`・`5fc8563`・2026-06-04・`npm run sync:project-docs` 自動反映）
 <!-- sync:auto:meta:end -->
 
 ---
@@ -266,6 +266,7 @@ sabotage-minecraft/
 ├── scripts/
 │   ├── project-sync-core.mjs
 │   ├── start-local-dev.ps1
+│   ├── stop-local-dev.ps1
 │   └── sync-project-docs.mjs
 ```
 <!-- sync:auto:directory-tree:end -->
@@ -363,6 +364,7 @@ sabotage-minecraft/
 | `npm run sync:project-docs:check` | CI 用ドキュメント鮮度チェック |
 | `npm run bridge:install` | Bridge 依存インストール |
 | `npm run dev:local` | **Windows:** Bridge + BDS を別ウィンドウで一括起動 |
+| `npm run dev:local:stop` | **Windows:** Bridge (8787) + BDS (19132) を停止 |
 | `npm run bridge:dev` | Bridge 開発起動（ポート 8787） |
 | `npm run bridge:build` | TypeScript ビルド |
 | `npm run bridge:start` | 本番起動（`dist/`） |
@@ -380,7 +382,7 @@ npm run dev:local
 | BDS | 新 PowerShell → `bds/bedrock_server.exe`（19132） |
 | 前提 | `bds/` に BDS 展開済み（`.gitignore` 対象）、Behavior Pack 配置済み |
 | 接続 | Bedrock → サーバー追加 → `127.0.0.1:19132` |
-| 終了 | 各ウィンドウで Ctrl+C |
+| 終了 | `npm run dev:local:stop`（サーバー停止 + 起動ウィンドウを閉じる） |
 
 Bridge のみ / BDS のみが必要なときは `bridge:dev` と `bds/bedrock_server.exe` を個別に起動する。
 

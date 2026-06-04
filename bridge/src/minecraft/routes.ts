@@ -32,7 +32,11 @@ export function registerRoutes(
     if (!verifyBridgeApiKey(request.headers["x-bridge-api-key"])) {
       return reply.code(401).send({ error: "unauthorized" });
     }
-    return { events: eventStore.pollEvents() };
+    const events = eventStore.pollEvents();
+    if (events.length > 0) {
+      logger.info(`Minecraft polled events: ${events.length}`);
+    }
+    return { events };
   });
 
   app.post<{ Body: { eventIds?: string[] } }>(
@@ -43,6 +47,9 @@ export function registerRoutes(
       }
       const eventIds = request.body?.eventIds ?? [];
       const acked = eventStore.ackEvents(eventIds);
+      if (acked > 0) {
+        logger.info(`Minecraft acked events: ${acked}`);
+      }
       return { ok: true, acked };
     },
   );
@@ -86,6 +93,7 @@ export function registerRoutes(
       if (!event) {
         return reply.code(409).send({ error: "event rejected" });
       }
+      logger.info(`Debug event accepted: ${command}`);
       return { ok: true, eventId: event.id };
     },
   );

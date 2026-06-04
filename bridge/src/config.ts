@@ -5,7 +5,7 @@ export const config = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   bridgeApiKey: process.env.BRIDGE_API_KEY ?? "change-me",
   platforms: {
-    enableYoutube: process.env.ENABLE_YOUTUBE !== "false",
+    enableYoutube: process.env.ENABLE_YOUTUBE === "true",
     enableTwitch: process.env.ENABLE_TWITCH === "true",
   },
   youtube: {

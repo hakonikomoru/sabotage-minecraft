@@ -4,7 +4,7 @@
 > 人間向けの概要は [README.md](../README.md)、配信向け説明は [worldview.md](./worldview.md)。
 
 <!-- sync:auto:meta:start -->
-最終更新の想定リポジトリ: `hakonikomoru/sabotage-minecraft`（`main`・`fccf354`・2026-06-03・`npm run sync:project-docs` 自動反映）
+最終更新の想定リポジトリ: `hakonikomoru/sabotage-minecraft`（`main`・`29ff7d0`・2026-06-04・`npm run sync:project-docs` 自動反映）
 <!-- sync:auto:meta:end -->
 
 ---
@@ -265,6 +265,7 @@ sabotage-minecraft/
 │   └── youtube-api-setup.md
 ├── scripts/
 │   ├── project-sync-core.mjs
+│   ├── start-local-dev.ps1
 │   └── sync-project-docs.mjs
 ```
 <!-- sync:auto:directory-tree:end -->
@@ -361,20 +362,38 @@ sabotage-minecraft/
 | `npm run sync:project-docs` | 本ファイルの auto ブロック更新 |
 | `npm run sync:project-docs:check` | CI 用ドキュメント鮮度チェック |
 | `npm run bridge:install` | Bridge 依存インストール |
-| `npm run bridge:dev` | Bridge 開発起動 |
+| `npm run dev:local` | **Windows:** Bridge + BDS を別ウィンドウで一括起動 |
+| `npm run bridge:dev` | Bridge 開発起動（ポート 8787） |
 | `npm run bridge:build` | TypeScript ビルド |
 | `npm run bridge:start` | 本番起動（`dist/`） |
+
+### ローカル一括起動（Windows）
+
+```powershell
+npm run dev:local
+```
+
+| 項目 | 内容 |
+|------|------|
+| 実装 | `scripts/start-local-dev.ps1` |
+| Bridge | 新 PowerShell → `npm run bridge:dev`（8787） |
+| BDS | 新 PowerShell → `bds/bedrock_server.exe`（19132） |
+| 前提 | `bds/` に BDS 展開済み（`.gitignore` 対象）、Behavior Pack 配置済み |
+| 接続 | Bedrock → サーバー追加 → `127.0.0.1:19132` |
+| 終了 | 各ウィンドウで Ctrl+C |
+
+Bridge のみ / BDS のみが必要なときは `bridge:dev` と `bds/bedrock_server.exe` を個別に起動する。
 
 ---
 
 ## 11. 優先順位（ロードマップ）
 
 ```txt
-1. debug endpoint → Minecraft 発動          ← 現在ここ
-2. BDS + Behavior Pack 読み込み
-3. !sab start → フィールド生成 / reset 確認
-4. Bridge ↔ Addon 連携の end-to-end
-5. YouTube OAuth + Live Chat
+1. debug endpoint → Minecraft 発動          ← 完了
+2. BDS + Behavior Pack 読み込み             ← 完了
+3. /scriptevent start → フィールド生成      ← 完了
+4. Bridge ↔ Addon 連携 end-to-end           ← 完了
+5. YouTube OAuth + Live Chat                ← 現在ここ
 6. Super Chat 演出ルーレット
 7. Twitch EventSub
 8. 追加モード（vote / roulette / wolf_capture_race）
@@ -384,9 +403,36 @@ sabotage-minecraft/
 
 ## 12. 検証チェックリスト
 
+### Bridge debug → Minecraft E2E
+
+```txt
+[ ] npm run dev:local または bridge:dev + BDS 起動
+[ ] bridge/.env（BRIDGE_API_KEY = config.js の bridge.apiKey）
+[ ] /health → ok: true
+[ ] ゲーム内 /scriptevent sab:command start
+[ ] Invoke-RestMethod で POST /api/debug/events（PowerShell）
+[ ] BDS: [SAB] Bridge connected
+[ ] BDS: [SAB] Received events / Queue event from bridge
+[ ] BDS: [SAB] Processing queued event / Effect executed
+[ ] BDS: [SAB] Acked events
+[ ] Bridge: Debug event accepted / Minecraft polled events / Minecraft acked events
+[ ] block / hole / slow / blind / chicken を各1回
+```
+
+PowerShell で debug 投入（`curl` エイリアス不可）:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8787/api/debug/events" -Method POST `
+  -Headers @{ "X-Bridge-Api-Key" = "change-me" } -ContentType "application/json" `
+  -Body '{"command":"block","authorName":"debug-user"}'
+```
+
+### 全体
+
 ```txt
 [ ] bridge/.env 作成（BRIDGE_API_KEY = config.js と一致）
-[ ] npm run bridge:dev で起動
+[ ] npm run bridge:install（初回）
+[ ] npm run dev:local または bridge:dev + BDS で起動
 [ ] curl POST /api/debug/events → 200
 [ ] BDS で pack 読み込みログ確認
 [ ] !sab start → フィールド生成

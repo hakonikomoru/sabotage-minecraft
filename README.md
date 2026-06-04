@@ -65,7 +65,7 @@ sabotage-minecraft/
 │   ├── src/platforms/    youtube / twitch / debug
 │   └── .env.example      ← 手元で .env を作成
 ├── docs/                 # 仕様・セットアップ
-└── scripts/              # project-sync 等
+└── scripts/              # project-sync, start-local-dev.ps1 等
 ```
 
 詳細ツリー: [docs/project-sync.md](docs/project-sync.md)
@@ -90,11 +90,32 @@ cd bridge && cp .env.example .env
 | `ENABLE_TWITCH` | `false` |
 | `ENABLE_STRONG_EFFECTS` | `false` |
 
-### 2. Bridge 起動
+初回のみ: `bds/` に [Bedrock Dedicated Server](https://www.minecraft.net/en-us/download/server/bedrock) を展開する（Git 管理外）。Behavior Pack は `bds/behavior_packs/sabotage_behavior/` へリポジトリの `addon/behavior_packs/sabotage_behavior` をコピー。
 
-```bash
+### 2. ローカル一括起動（Windows 推奨）
+
+Bridge（8787）と BDS（19132）を **別ウィンドウで同時起動** します。
+
+```powershell
+npm run dev:local
+```
+
+| 項目 | 内容 |
+|------|------|
+| Bridge | 新しい PowerShell → `npm run bridge:dev`（ポート 8787） |
+| BDS | 新しい PowerShell → `bds/bedrock_server.exe`（ポート 19132） |
+| マイクラ接続 | サーバー追加 → `127.0.0.1` / ポート `19132` |
+| 終了 | 各ウィンドウで Ctrl+C |
+
+実装: [`scripts/start-local-dev.ps1`](scripts/start-local-dev.ps1)
+
+Bridge だけ / BDS だけ起動する場合:
+
+```powershell
 npm run bridge:dev
-# または: cd bridge && npm run dev
+# 別ターミナル
+cd bds
+.\bedrock_server.exe
 ```
 
 ### 3. debug イベント
@@ -104,6 +125,14 @@ curl -X POST http://127.0.0.1:8787/api/debug/events \
   -H "Content-Type: application/json" \
   -H "X-Bridge-Api-Key: change-me" \
   -d '{"command":"hole","authorName":"debug-user"}'
+```
+
+PowerShell では `curl` ではなく次を使う（JSON が壊れない）:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:8787/api/debug/events" -Method POST `
+  -Headers @{ "X-Bridge-Api-Key" = "change-me" } -ContentType "application/json" `
+  -Body '{"command":"hole","authorName":"debug-user"}'
 ```
 
 ### 4. Behavior Pack → BDS
@@ -118,14 +147,47 @@ cp -R addon/behavior_packs/sabotage_behavior /path/to/bds/worlds/YourWorld/behav
 ### 5. ゲーム内（管理者）
 
 ```txt
-!sab start              # 平坦な場所で — フィールド生成
-!sab start defend       # 防衛モード
-!sab test hole          # ローカルテスト
-!sab status
-!sab reset              # 生成範囲を元の地形に戻す
+/scriptevent sab:command start
+/scriptevent sab:command start defend
+/scriptevent sab:command test hole
+/scriptevent sab:command status
+/scriptevent sab:command reset
 ```
 
 管理者: `config.js` の `admin.playerNames` または `/tag @s add sab:admin`
+
+（BDS Script API によっては `!sab` チャットが使えない。上記 `/scriptevent` が動作確認用の正式コマンド）
+
+### 6. 次: YouTube Live Chat 連携
+
+debug E2E 完了後。詳細: [docs/youtube-api-setup.md](docs/youtube-api-setup.md)
+
+**手順概要:**
+
+1. Google Cloud で YouTube Data API v3 + OAuth クライアント作成
+2. `bridge/.env` を更新:
+
+```env
+ENABLE_YOUTUBE=true
+ENABLE_YOUTUBE_CHAT=true
+YOUTUBE_CLIENT_ID=...
+YOUTUBE_CLIENT_SECRET=...
+YOUTUBE_REFRESH_TOKEN=...
+YOUTUBE_LIVE_VIDEO_ID=...   # 配信中の動画 ID（ライブ開始後）
+```
+
+3. Refresh Token 取得: Bridge 起動後 → ブラウザで `http://127.0.0.1:8787/auth/youtube`
+4. `npm run dev:local` で Bridge + BDS 起動
+5. ゲーム内 `/scriptevent sab:command start`
+6. YouTube ライブチャットで `!slow` / `!hole` 等を投稿 → BDS ログで効果確認
+
+Bridge ログの目安:
+
+```txt
+[OK] YouTube live chat connected: ...
+[INFO] Received command: !hole from viewer (youtube/normalChat)
+[INFO] Event queued: hole by viewer
+```
 
 ---
 
@@ -180,6 +242,7 @@ cp -R addon/behavior_packs/sabotage_behavior /path/to/bds/worlds/YourWorld/behav
 
 ```bash
 npm run bridge:build          # TypeScript コンパイル
+npm run dev:local             # Windows: Bridge + BDS 一括起動
 npm run sync:project-docs     # docs/project-sync.md 更新
 npm run sync:project-docs:check  # CI 用
 ```

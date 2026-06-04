@@ -39,6 +39,10 @@ async function pollBridge() {
     const events = await fetchPendingEvents();
     updateBridgeConnected(true);
 
+    if (events.length > 0) {
+      console.warn(`[SAB] Received events: ${events.length}`);
+    }
+
     const ackIds = [];
     for (const event of events) {
       if (event.type === "system") {
@@ -47,12 +51,19 @@ async function pollBridge() {
         continue;
       }
       if (eventQueue.enqueue(event)) {
+        console.warn(`[SAB] Queue event from bridge: ${event.command}`);
         ackIds.push(event.id);
       }
     }
 
     if (ackIds.length > 0) {
-      await ackEvents(ackIds);
+      try {
+        const result = await ackEvents(ackIds);
+        const acked = result?.acked ?? ackIds.length;
+        console.warn(`[SAB] Acked events: ${acked}`);
+      } catch (error) {
+        console.warn(`[SAB] Ack failed: ${error?.message ?? error}`);
+      }
     }
   } catch {
     updateBridgeConnected(false);

@@ -56,8 +56,17 @@ export class PlatformManager {
       logger.warn("YouTube chat enabled but OAuth is not configured");
       return;
     }
-    this.youtubeClient = new YoutubeClient(this.onEvent);
-    await this.youtubeClient.start();
+    try {
+      this.youtubeClient = new YoutubeClient(this.onEvent);
+      await this.youtubeClient.start();
+    } catch (error) {
+      logger.error(
+        "YouTube startup failed (Bridge continues without YouTube chat)",
+        error,
+      );
+      this.youtubeClient?.stop();
+      this.youtubeClient = null;
+    }
   }
 
   private async startTwitch(): Promise<void> {

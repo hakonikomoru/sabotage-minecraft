@@ -9,6 +9,7 @@
     "bridge:install": "npm install --prefix bridge",
     "bridge:build": "npm run build --prefix bridge",
     "bridge:dev": "npm run dev --prefix bridge",
-    "bridge:start": "npm run start --prefix bridge"
+    "bridge:start": "npm run start --prefix bridge",
+    "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/start-local-dev.ps1"
   }
 }

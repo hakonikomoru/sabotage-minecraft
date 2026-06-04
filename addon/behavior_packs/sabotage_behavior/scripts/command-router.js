@@ -1,5 +1,5 @@
 import { world, system } from "@minecraft/server";
-import { CONFIG, GAME_STATES } from "./config.js";
+import { GAME_STATES } from "./config.js";
 import {
   getGameState,
   setGameState,
@@ -18,10 +18,13 @@ import {
   checkProgress,
   getStatusLines,
   switchMode,
-  getModeDisplayName,
 } from "./modes/mode-manager.js";
 
 const TEST_COMMANDS = new Set(["slow", "blind", "chicken", "hole", "block"]);
+
+function denyAdmin(player) {
+  broadcast("Permission denied: this command requires SAB admin.");
+}
 
 export async function handleSabCommand(player, args) {
   const sub = (args[0] ?? "").toLowerCase();
@@ -29,7 +32,7 @@ export async function handleSabCommand(player, args) {
   switch (sub) {
     case "start": {
       if (!isAdmin(player)) {
-        broadcast(`${player.name} は管理コマンドを実行できません`);
+        denyAdmin(player);
         return;
       }
       const variant = (args[1] ?? "").toLowerCase();
@@ -44,11 +47,13 @@ export async function handleSabCommand(player, args) {
       break;
     }
     case "mode": {
-      if (!isAdmin(player)) return;
+      if (!isAdmin(player)) {
+        denyAdmin(player);
+        return;
+      }
       const target = (args[1] ?? "").toLowerCase();
       if (!target) {
-        const mode = getCurrentMode();
-        broadcast(`現在のモード：${mode} / ${getModeDisplayName(mode)}`);
+        broadcast(`Current mode: ${getCurrentMode()}`);
         return;
       }
       const result = switchMode(target);
@@ -56,62 +61,80 @@ export async function handleSabCommand(player, args) {
       break;
     }
     case "stop":
-      if (!isAdmin(player)) return;
+      if (!isAdmin(player)) {
+        denyAdmin(player);
+        return;
+      }
       stopGame();
-      broadcast("手動終了 — チャレンジを停止しました");
+      broadcast("Game stopped.");
       break;
     case "pause":
-      if (!isAdmin(player)) return;
+      if (!isAdmin(player)) {
+        denyAdmin(player);
+        return;
+      }
       gameTimer.pause();
       setGameState(GAME_STATES.PAUSED);
-      broadcast(
-        `一時停止 — 残り ${gameTimer.formatRemaining()} / イベント発動停止`,
-      );
+      broadcast(`Game paused. Remaining: ${gameTimer.formatRemaining()}`);
       break;
     case "resume":
-      if (!isAdmin(player)) return;
+      if (!isAdmin(player)) {
+        denyAdmin(player);
+        return;
+      }
       if (!gameTimer.isActive()) {
-        broadcast("タイマー未開始 — !sab start で開始してください");
+        broadcast(
+          "Timer not started - use /scriptevent sab:command start",
+        );
         return;
       }
       gameTimer.resume();
       setGameState(GAME_STATES.RUNNING);
-      broadcast(`再開 — 残り ${gameTimer.formatRemaining()}`);
+      broadcast(`Game resumed. Remaining: ${gameTimer.formatRemaining()}`);
       break;
     case "status": {
       const lines = getStatusLines();
-      broadcast(`状態：${lines.state}`);
-      broadcast(`モード：${lines.mode}`);
-      broadcast(`残り時間：${lines.remaining}`);
-      broadcast(`白色羊毛：${lines.whiteWool} / ${lines.total}`);
-      broadcast(`${lines.lineLabel}：${lines.required}`);
-      broadcast(`達成率：${lines.ratePercent}%`);
-      broadcast(`キュー数：${lines.queue}`);
-      broadcast(`Bridge接続：${lines.bridge}`);
+      broadcast(`State: ${lines.state}`);
+      broadcast(`Mode: ${lines.mode}`);
+      broadcast(`Remaining: ${lines.remaining}`);
+      broadcast(`White wool: ${lines.whiteWool} / ${lines.total}`);
+      broadcast(`Target: ${lines.required}`);
+      broadcast(`Progress: ${lines.ratePercent}%`);
+      broadcast(`Queue: ${lines.queue}`);
+      broadcast(`Bridge: ${lines.bridge}`);
       checkProgress();
       break;
     }
     case "clear":
-      if (!isAdmin(player)) return;
+      if (!isAdmin(player)) {
+        denyAdmin(player);
+        return;
+      }
       eventQueue.clear();
-      broadcast("イベントキューをクリアしました");
+      broadcast("Event queue cleared.");
       break;
     case "reset":
-      if (!isAdmin(player)) return;
+      if (!isAdmin(player)) {
+        denyAdmin(player);
+        return;
+      }
       resetGame();
       break;
     case "test": {
-      if (!isAdmin(player)) return;
+      if (!isAdmin(player)) {
+        denyAdmin(player);
+        return;
+      }
       const command = (args[1] ?? "blind").toLowerCase();
       if (!TEST_COMMANDS.has(command)) {
-        broadcast(`未対応テスト: ${command}`);
+        broadcast(`Unknown test command: ${command}`);
         return;
       }
       if (!canAcceptYoutubeEvents()) {
-        broadcast("ゲーム未開始 — !sab start 後にテストしてください");
+        broadcast("Game not started - run start before testing.");
         return;
       }
-      executeEffect({
+      const testEvent = {
         id: `test_${Date.now()}`,
         type: command === "block" ? "support" : "sabotage",
         source: "normalChat",
@@ -120,27 +143,78 @@ export async function handleSabCommand(player, args) {
         authorName: player.name,
         message: `!${command}`,
         createdAt: new Date().toISOString(),
-      });
-      broadcast(`テスト発動: !${command}`);
+      };
+      if (!eventQueue.enqueue(testEvent)) {
+        broadcast(`Test event queue failed: ${command}`);
+        return;
+      }
+      broadcast(`Test event queued: ${command}`);
+      processNextQueuedEvent();
       break;
     }
     default:
       broadcast(
-        "用法: !sab start|start defend|mode|stop|pause|resume|status|clear|reset|test",
+        "Usage: /scriptevent sab:command start|start defend|mode|stop|pause|resume|status|clear|reset|test",
       );
   }
 }
 
 export function registerChatCommands() {
-  world.beforeEvents.chatSend.subscribe((event) => {
-    const message = event.message.trim();
+  const scriptEvent = system.afterEvents?.scriptEventReceive;
+
+  if (scriptEvent) {
+    scriptEvent.subscribe((event) => {
+      if (event.id !== "sab:command") {
+        return;
+      }
+
+      const message = event.message?.trim?.() ?? "status";
+      const args = message.split(/\s+/).filter(Boolean);
+      const sender = event.sourceEntity ?? world.getPlayers()[0];
+
+      if (!sender) {
+        console.warn("[SAB] script event received, but no player is available.");
+        return;
+      }
+
+      system.run(() => {
+        handleSabCommand(sender, args).catch((error) => {
+          console.warn(`[SAB] Command failed: ${error?.message ?? error}`);
+        });
+      });
+    });
+
+    console.warn(
+      "[SAB] scriptEvent command registered. Use /scriptevent sab:command status",
+    );
+  } else {
+    console.warn(
+      "[SAB] scriptEventReceive is not available in this Script API version.",
+    );
+  }
+
+  const chatEvent = world.afterEvents?.chatSend ?? world.beforeEvents?.chatSend;
+
+  if (!chatEvent) {
+    console.warn("[SAB] chatSend event is not available in this Script API version.");
+    return;
+  }
+
+  chatEvent.subscribe((event) => {
+    const message = event.message?.trim?.() ?? "";
     if (!message.toLowerCase().startsWith("!sab")) {
       return;
     }
-    event.cancel = true;
+
+    if ("cancel" in event) {
+      event.cancel = true;
+    }
+
     system.run(() => {
-      const args = message.slice(4).trim().split(/\s+/);
-      handleSabCommand(event.sender, args);
+      const args = message.slice(4).trim().split(/\s+/).filter(Boolean);
+      handleSabCommand(event.sender, args).catch((error) => {
+        console.warn(`[SAB] Command failed: ${error?.message ?? error}`);
+      });
     });
   });
 }
@@ -148,6 +222,7 @@ export function registerChatCommands() {
 export function processNextQueuedEvent() {
   const event = eventQueue.dequeueOne();
   if (event) {
+    console.warn(`[SAB] Processing queued event: ${event.command}`);
     executeEffect(event);
   }
 }
@@ -157,27 +232,27 @@ export function handleSystemEvent(event) {
     case "pause":
       gameTimer.pause();
       setGameState(GAME_STATES.PAUSED);
-      broadcast(`YouTube管理: 一時停止 (${event.authorName})`);
+      broadcast(`Remote admin: paused (${event.authorName})`);
       break;
     case "resume":
       if (gameTimer.isActive()) {
         gameTimer.resume();
         setGameState(GAME_STATES.RUNNING);
-        broadcast(`YouTube管理: 再開 (${event.authorName})`);
+        broadcast(`Remote admin: resumed (${event.authorName})`);
       }
       break;
     case "stop":
       stopGame();
-      broadcast(`YouTube管理: 停止 (${event.authorName})`);
+      broadcast(`Remote admin: stopped (${event.authorName})`);
       break;
     case "clearqueue":
       eventQueue.clear();
-      broadcast(`YouTube管理: キュークリア (${event.authorName})`);
+      broadcast(`Remote admin: queue cleared (${event.authorName})`);
       break;
     case "status": {
       const lines = getStatusLines();
       broadcast(
-        `YouTube管理: モード=${lines.mode} 残り=${lines.remaining} 羊毛=${lines.whiteWool}`,
+        `Remote admin: mode=${lines.mode} remaining=${lines.remaining} wool=${lines.whiteWool}`,
       );
       break;
     }

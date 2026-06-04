@@ -4,7 +4,7 @@ import {
   HttpRequestMethod,
   HttpHeader,
 } from "@minecraft/server-net";
-import { CONFIG } from "./config.js";
+import { CONFIG } from "../config.js";
 
 function buildHeaders() {
   return [
@@ -40,8 +40,12 @@ export async function ackEvents(eventIds) {
 }
 
 export async function checkBridgeHealth() {
-  const request = new HttpRequest(`${CONFIG.bridge.baseUrl}/health`);
-  request.method = HttpRequestMethod.Get;
-  const response = await http.request(request);
-  return response.status === 200;
+  try {
+    const request = new HttpRequest(`${CONFIG.bridge.baseUrl}/health`);
+    request.method = HttpRequestMethod.Get;
+    const response = await http.request(request);
+    return response.status === 200;
+  } catch {
+    return false;
+  }
 }

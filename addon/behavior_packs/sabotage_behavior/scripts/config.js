@@ -62,10 +62,10 @@ export const CONFIG = {
   },
 
   admin: {
-    playerNames: [],
+    playerNames: ["hakonikomoru"],
   },
 
-  /** 将来: 名前付きアイテムメニュー（MVP では未実装） */
+  /** Future: named item menu (not implemented in MVP) */
   menuItems: {
     clock: "SAB:menu",
     start: "SAB:start",
@@ -79,16 +79,16 @@ export const CONFIG = {
 };
 
 export const MODE_DISPLAY_NAMES = {
-  fill_challenge: "10分ブロック埋めチャレンジ",
-  fill_and_defend: "ブロック埋め防衛チャレンジ",
+  fill_challenge: "Fill Challenge (10 min)",
+  fill_and_defend: "Fill and Defend (10 min)",
 };
 
 export const EFFECT_LABELS = {
-  slow: "鈍足10秒！",
-  blind: "画面が見えない！",
-  chicken: "ニワトリパーティー！",
-  hole: "埋めた床が消えた！",
-  block: "白色の羊毛 +16！",
+  slow: "Slowness for 10 seconds!",
+  blind: "Blindness!",
+  chicken: "Chicken party!",
+  hole: "Floor blocks removed!",
+  block: "White wool +16!",
 };
 
 export const GAME_STATES = {

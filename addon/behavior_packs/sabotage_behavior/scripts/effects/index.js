@@ -6,10 +6,13 @@ import { isEffectRunnable } from "./registry.js";
 
 export function executeEffect(event) {
   if (!isEffectRunnable(event.command)) {
-    broadcast(`[WARN] 無効な効果: !${event.command}`);
+    broadcast(`[WARN] Invalid effect: !${event.command}`);
     return;
   }
+
+  broadcast(`Effect executed: ${event.command}`);
   showEventTitle(event);
+
   switch (event.command) {
     case "slow":
       applySlow();

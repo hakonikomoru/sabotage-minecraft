@@ -1,6 +1,7 @@
 import { ItemStack } from "@minecraft/server";
 import { CONFIG } from "../config.js";
 import { getMainPlayer } from "../utils/players.js";
+import { broadcast } from "./visual-effects.js";
 
 export function removeWhiteWoolFromInventory(player) {
   const inventory = player.getComponent("inventory")?.container;
@@ -31,6 +32,11 @@ export function giveWhiteWool(player, amount) {
 
 export function applyBlockSupport() {
   const player = getMainPlayer();
-  if (!player) return;
+  if (!player) {
+    broadcast("Block effect skipped: no player found.");
+    return 0;
+  }
   giveWhiteWool(player, 16);
+  broadcast("Added white wool: 16");
+  return 16;
 }

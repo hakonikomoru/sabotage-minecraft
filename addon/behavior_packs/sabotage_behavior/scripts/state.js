@@ -51,6 +51,16 @@ export function setBridgeConnected(connected) {
   state.bridgeConnected = connected;
 }
 
+/** Logs only when the connection state changes. */
+export function updateBridgeConnected(connected) {
+  if (state.bridgeConnected === connected) {
+    return false;
+  }
+  state.bridgeConnected = connected;
+  console.warn(connected ? "[SAB] Bridge connected" : "[SAB] Bridge disconnected");
+  return true;
+}
+
 export function isBridgeConnected() {
   return state.bridgeConnected;
 }

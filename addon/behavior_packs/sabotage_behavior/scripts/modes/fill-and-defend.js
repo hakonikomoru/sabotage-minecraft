@@ -33,24 +33,16 @@ export function finishFillAndDefend(playerWon) {
   setWinResult(playerWon ? "player" : "viewers");
 
   if (playerWon) {
-    broadcast("プレイヤー勝利！");
-    broadcast("10分間、妨害に耐えて90個以上の白色羊毛を守り切った！");
-    showTitleAll(
-      "プレイヤー勝利！",
-      "10分間、妨害に耐えて90個以上の白色羊毛を守り切った！",
-    );
+    broadcast("Player win! Defended target count.");
+    showTitleAll("Player win!", "Defended target count.");
   } else {
-    broadcast("視聴者勝利！");
-    broadcast("妨害により防衛ライン90個を守り切れなかった！");
-    showTitleAll(
-      "視聴者勝利！",
-      "妨害により防衛ライン90個を守り切れなかった！",
-    );
+    broadcast("Viewer win! Target count was not defended.");
+    showTitleAll("Viewer win!", "Target count was not defended.");
   }
 }
 
 /**
- * fill_and_defend では途中勝利しない。進捗確認のみ。
+ * fill_and_defend does not win mid-game. Progress check only.
  */
 export function checkFillAndDefendProgress() {
   if (getGameState() !== GAME_STATES.RUNNING) {

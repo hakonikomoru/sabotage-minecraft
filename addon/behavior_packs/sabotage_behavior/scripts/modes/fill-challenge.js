@@ -33,12 +33,10 @@ export function finishFillChallenge(playerWon) {
   setWinResult(playerWon ? "player" : "viewers");
 
   if (playerWon) {
-    broadcast("プレイヤー勝利！");
-    broadcast("10分以内に90%以上埋め切った！");
-    showTitleAll("プレイヤー勝利！", "10分以内に90%以上埋め切った！");
+    broadcast("Player win! Target reached.");
+    showTitleAll("Player win!", "Target reached.");
   } else {
-    broadcast("視聴者勝利！");
-    broadcast("妨害に耐えきれず、90%達成ならず！");
-    showTitleAll("視聴者勝利！", "妨害に耐えきれず、90%達成ならず！");
+    broadcast("Viewer win! Time is up.");
+    showTitleAll("Viewer win!", "Time is up.");
   }
 }

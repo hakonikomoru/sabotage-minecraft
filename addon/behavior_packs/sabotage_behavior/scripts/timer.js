@@ -2,10 +2,10 @@ import { world } from "@minecraft/server";
 import { CONFIG } from "./config.js";
 
 const WARNING_MESSAGES = {
-  300: "残り5分",
-  180: "残り3分",
-  60: "残り1分！ラストスパート！",
-  30: "残り30秒！",
+  300: "5 minutes remaining",
+  180: "3 minutes remaining",
+  60: "1 minute remaining - last sprint!",
+  30: "30 seconds remaining!",
 };
 
 export class GameTimer {
@@ -86,6 +86,7 @@ export class GameTimer {
         const message = WARNING_MESSAGES[threshold];
         if (message) {
           world.sendMessage(`[SAB] ${message}`);
+          console.warn(`[SAB][BROADCAST] ${message}`);
           this.showTitleAll(message, "");
         }
       }
@@ -104,8 +105,9 @@ export class GameTimer {
     if (!this.active && this.remainingSeconds > 0) return;
     this.active = false;
     this.paused = false;
-    world.sendMessage("[SAB] チャレンジ終了！");
-    this.showTitleAll("終了！", "");
+    world.sendMessage("[SAB] Challenge ended.");
+    console.warn("[SAB][BROADCAST] Challenge ended.");
+    this.showTitleAll("Finished!", "");
     const cb = this.onFinish;
     this.onFinish = null;
     if (cb) cb();

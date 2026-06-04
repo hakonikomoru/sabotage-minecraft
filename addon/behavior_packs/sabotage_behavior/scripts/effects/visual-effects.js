@@ -1,7 +1,8 @@
 import { world } from "@minecraft/server";
-import { CONFIG, EFFECT_LABELS } from "../config.js";
+import { EFFECT_LABELS } from "../config.js";
 
 export function broadcast(message) {
+  console.warn(`[SAB][BROADCAST] ${message}`);
   world.sendMessage(`[SAB] ${message}`);
 }
 
@@ -18,5 +19,5 @@ export function showTitleAll(title, subtitle) {
 
 export function showEventTitle(event) {
   const label = EFFECT_LABELS[event.command] ?? event.command;
-  showTitleAll(`${event.authorName} の !${event.command} 発動！`, label);
+  showTitleAll(`${event.authorName} triggered !${event.command}!`, label);
 }

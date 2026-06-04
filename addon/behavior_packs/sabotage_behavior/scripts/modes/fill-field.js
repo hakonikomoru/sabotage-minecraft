@@ -8,7 +8,7 @@ import {
 } from "../utils/blocks.js";
 import { setField, getCurrentMode } from "../state.js";
 
-/** フィールド生成を許可する床ブロック（上書きしてよい） */
+/** Floor blocks that may be overwritten when generating the field */
 const REPLACEABLE_FLOOR = new Set([
   "minecraft:air",
   "minecraft:grass_block",
@@ -39,7 +39,10 @@ export function validateFieldSite(player, modeId = getCurrentMode()) {
   const dimension = player.dimension;
 
   if (y < dimension.heightRange.min + 1 || y > dimension.heightRange.max - 2) {
-    return { ok: false, reason: "高さが生成可能範囲外です。別の場所で !sab start してください" };
+    return {
+      ok: false,
+      reason: "Height out of range. Move to another flat area and run start.",
+    };
   }
 
   let blocked = 0;
@@ -56,7 +59,7 @@ export function validateFieldSite(player, modeId = getCurrentMode()) {
   if (blocked > 0) {
     return {
       ok: false,
-      reason: `生成範囲に上書きできないブロックが ${blocked} 個あります。平坦な場所で !sab start してください`,
+      reason: `Cannot overwrite ${blocked} block(s) in field area. Move to a flat area and run start.`,
     };
   }
 
@@ -133,7 +136,7 @@ export function buildField(player, modeId = getCurrentMode()) {
   return field;
 }
 
-/** 生成範囲を元のブロック状態に戻す（配布・テスト向け） */
+/** Restore generated area to original blocks (distribution / testing) */
 export function destroyField(field) {
   if (!field?.originalBlocks?.length) {
     return false;
@@ -162,7 +165,8 @@ export function countWhiteWool(field) {
   if (!dimension) return 0;
   let count = 0;
   forEachInnerCell(field, (x, blockY, z) => {
-    if (getBlockTypeId(dimension, { x, y: blockY, z }) === field.targetBlock) {
+    const woolY = blockY + 1;
+    if (getBlockTypeId(dimension, { x, y: woolY, z }) === field.targetBlock) {
       count += 1;
     }
   });
@@ -178,8 +182,9 @@ export function getWoolPositions(field) {
   const dimension = getDimension(field);
   if (!dimension) return positions;
   forEachInnerCell(field, (x, blockY, z) => {
-    if (getBlockTypeId(dimension, { x, y: blockY, z }) === field.targetBlock) {
-      positions.push({ x, y: blockY, z });
+    const woolY = blockY + 1;
+    if (getBlockTypeId(dimension, { x, y: woolY, z }) === field.targetBlock) {
+      positions.push({ x, y: woolY, z });
     }
   });
   return positions;

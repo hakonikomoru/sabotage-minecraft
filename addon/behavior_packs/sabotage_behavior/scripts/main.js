@@ -3,7 +3,7 @@ import { CONFIG, GAME_STATES } from "./config.js";
 import {
   getGameState,
   setGameState,
-  setBridgeConnected,
+  updateBridgeConnected,
   canAcceptYoutubeEvents,
 } from "./state.js";
 import {
@@ -37,7 +37,7 @@ async function pollBridge() {
   pollInFlight = true;
   try {
     const events = await fetchPendingEvents();
-    setBridgeConnected(true);
+    updateBridgeConnected(true);
 
     const ackIds = [];
     for (const event of events) {
@@ -54,9 +54,8 @@ async function pollBridge() {
     if (ackIds.length > 0) {
       await ackEvents(ackIds);
     }
-  } catch (error) {
-    setBridgeConnected(false);
-    console.warn(`[SAB] Bridge poll failed: ${error?.message ?? error}`);
+  } catch {
+    updateBridgeConnected(false);
   } finally {
     pollInFlight = false;
   }
@@ -67,7 +66,11 @@ function bootstrap() {
   setGameState(GAME_STATES.READY);
 
   system.runInterval(() => {
-    system.run(() => pollBridge());
+    system.run(() => {
+      pollBridge().catch(() => {
+        updateBridgeConnected(false);
+      });
+    });
   }, CONFIG.bridge.pollIntervalTicks);
 
   system.runInterval(() => {
@@ -92,7 +95,8 @@ function bootstrap() {
     });
   }, CONFIG.game.progressCheckIntervalTicks);
 
-  broadcast("SAB addon ready — !sab start / !sab start defend");
+  broadcast("SAB addon ready - use /scriptevent sab:command start");
+  broadcast("SAB command ready - use /scriptevent sab:command status");
   broadcast(`Bridge: ${CONFIG.bridge.baseUrl}`);
   logOk("sabotage_behavior initialized");
 }
@@ -101,5 +105,5 @@ system.runTimeout(() => bootstrap(), 20);
 
 export async function probeBridgeOnReady() {
   const ok = await checkBridgeHealth();
-  setBridgeConnected(ok);
+  updateBridgeConnected(ok);
 }

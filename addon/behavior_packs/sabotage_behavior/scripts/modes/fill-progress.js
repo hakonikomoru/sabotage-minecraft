@@ -34,7 +34,7 @@ export function shouldWinOnProgress(progress, modeId = getCurrentMode()) {
 }
 
 export function getLineLabel(modeId = getCurrentMode()) {
-  return modeId === "fill_and_defend" ? "防衛ライン" : "勝利ライン";
+  return modeId === "fill_and_defend" ? "Defend line" : "Target line";
 }
 
 export function formatProgress(field, modeId = getCurrentMode()) {
@@ -47,7 +47,7 @@ export function formatProgressDetailed(field, modeId = getCurrentMode()) {
   return `${p.placed} / ${p.required} (${p.ratePercent}%)`;
 }
 
-/** OBS オーバーレイ将来用 */
+/** Future OBS overlay snapshot */
 export function getGameSnapshot() {
   const field = getField();
   const modeId = getCurrentMode();

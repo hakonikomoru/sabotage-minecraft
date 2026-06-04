@@ -6,6 +6,7 @@ import {
   getField,
   clearField,
   setLastProgressNotifyAt,
+  getLastProgressNotifyAt,
   getGameState,
   setBridgeConnected,
   getCurrentMode,
@@ -21,9 +22,7 @@ import {
 } from "./fill-field.js";
 import {
   getProgress,
-  shouldWinOnProgress,
   getGameSnapshot,
-  getLineLabel,
   formatProgressDetailed,
 } from "./fill-progress.js";
 import { gameTimer } from "../timer.js";
@@ -47,29 +46,36 @@ export function getModeDisplayName(modeId = getCurrentMode()) {
   return MODE_DISPLAY_NAMES[modeId] ?? modeId;
 }
 
+function formatDuration(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${minutes}:${secs.toString().padStart(2, "0")}`;
+}
+
 export function switchMode(modeId) {
   if (!CONFIG.game.availableModes.includes(modeId)) {
-    return { ok: false, message: `未対応モード: ${modeId}` };
+    return { ok: false, message: `Unknown mode: ${modeId}` };
   }
   if (!canChangeMode()) {
     return {
       ok: false,
-      message:
-        "ゲーム中はモード変更できません。stop または reset 後に変更してください。",
+      message: "Cannot change mode while game is running. Use stop or reset first.",
     };
   }
   setCurrentMode(modeId);
   return {
     ok: true,
-    message: `モードを ${modeId} に変更しました`,
+    message: `Mode changed: ${modeId}`,
   };
 }
 
-async function setupFillGame(player, modeId, startMessages) {
+async function setupFillGame(player, modeId, onTimerFinish) {
   setCurrentMode(modeId);
   setMainPlayerName(player.name);
   eventQueue.clear();
   setWinResult(null);
+
+  broadcast(`Starting ${modeId}...`);
 
   const cfg = getModeConfig(modeId);
   const field = buildField(player, modeId);
@@ -77,25 +83,39 @@ async function setupFillGame(player, modeId, startMessages) {
     broadcast(field.error);
     return null;
   }
+
+  broadcast("Field generated.");
   removeWhiteWoolFromInventory(player);
   giveWhiteWool(player, cfg.initialWoolAmount);
   teleportToFieldStart(player, field);
 
-  gameTimer.start(startMessages.onTimerFinish, cfg.durationSeconds);
+  gameTimer.start(onTimerFinish, cfg.durationSeconds);
   setGameState(GAME_STATES.RUNNING);
   setLastProgressNotifyAt(Date.now());
 
-  const bridgeOk = await checkBridgeHealth();
+  broadcast(`Timer started: ${formatDuration(cfg.durationSeconds)}`);
+
+  let bridgeOk = false;
+  try {
+    bridgeOk = await checkBridgeHealth();
+  } catch {
+    bridgeOk = false;
+  }
   setBridgeConnected(bridgeOk);
 
-  broadcast(startMessages.chatLine1);
-  broadcast(startMessages.chatLine2);
   if (bridgeOk) {
-    broadcast("Bridge接続: OK");
+    broadcast("Bridge: connected");
   } else {
-    broadcast("Bridge接続: 未接続（debug endpoint でテスト可能）");
+    broadcast("Bridge: disconnected");
   }
-  showTitleAll(startMessages.title, startMessages.subtitle);
+
+  broadcast("Game started.");
+
+  if (modeId === "fill_and_defend") {
+    showTitleAll("Fill and Defend!", "Keep 90+ wool blocks for 10 minutes!");
+  } else {
+    showTitleAll("Fill Challenge!", "Reach 90% white wool in 10 minutes!");
+  }
 
   return field;
 }
@@ -103,21 +123,9 @@ async function setupFillGame(player, modeId, startMessages) {
 export async function startCurrentMode(player) {
   const modeId = getCurrentMode();
   if (modeId === "fill_and_defend") {
-    return setupFillGame(player, modeId, {
-      title: "ブロック埋め防衛チャレンジ開始！",
-      subtitle: "10分間、白色羊毛90個以上を守り切れ！",
-      chatLine1: "ブロック埋め防衛チャレンジ開始！",
-      chatLine2: "10分終了時点で白色羊毛90個以上をキープしたら勝利！",
-      onTimerFinish: () => finishFillAndDefendOnTimeUp(),
-    });
+    return setupFillGame(player, modeId, () => finishFillAndDefendOnTimeUp());
   }
-  return setupFillGame(player, modeId, {
-    title: "妨害マイクラ開始！",
-    subtitle: "10分以内に10×10の床を白色の羊毛で90%以上埋めろ！",
-    chatLine1: "妨害マイクラ開始！",
-    chatLine2: "10分以内に10×10の床を白色の羊毛で90%以上埋めろ！",
-    onTimerFinish: () => finishFillChallenge(false),
-  });
+  return setupFillGame(player, modeId, () => finishFillChallenge(false));
 }
 
 export function checkProgress() {
@@ -145,15 +153,15 @@ export function resetGame() {
   if (field) {
     const restored = destroyField(field);
     if (restored) {
-      broadcast("生成したフィールド範囲を元の地形に戻しました");
+      broadcast("Field terrain restored.");
     } else {
-      broadcast("フィールド情報が不完全なため、状態のみリセットしました");
+      broadcast("Field data incomplete - reset state only.");
     }
   }
   clearField();
   resetState();
   setGameState(GAME_STATES.IDLE);
-  broadcast("ゲームをリセットしました — !sab start で再開");
+  broadcast("Game reset - use /scriptevent sab:command start to play again.");
 }
 
 export function getStatusLines() {
@@ -171,7 +179,7 @@ export function getStatusLines() {
     progress: field ? formatProgressDetailed(field) : "0 / 90 (0%)",
     ratePercent: snapshot.progressRatePercent,
     queue: snapshot.queueSize,
-    bridge: snapshot.bridgeConnected ? "OK" : "未接続",
+    bridge: snapshot.bridgeConnected ? "connected" : "disconnected",
   };
 }
 
@@ -186,7 +194,7 @@ export function maybeNotifyProgress() {
   setLastProgressNotifyAt(now);
   const lines = getStatusLines();
   broadcast(
-    `残り ${lines.remaining} / 白色羊毛 ${lines.whiteWool}個 / ${lines.lineLabel} ${lines.required}個 / キュー ${lines.queue}件`,
+    `Remaining ${lines.remaining} / White wool ${lines.whiteWool} / Target ${lines.required} / Queue ${lines.queue}`,
   );
 }
 

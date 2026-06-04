@@ -1,12 +1,17 @@
 {
   "repo": "hakonikomoru/sabotage-minecraft",
   "rootLabel": "sabotage-minecraft",
-  "treeMaxDepth": 2,
+  "treeMaxDepth": 3,
   "markers": [
     "meta",
-    "directory-tree"
+    "directory-tree",
+    "src-tree"
   ],
   "treeEntries": [
-    "docs"
-  ]
+    "addon/behavior_packs/sabotage_behavior",
+    "bridge",
+    "docs",
+    "scripts"
+  ],
+  "botSrcRoot": "bridge/src"
 }

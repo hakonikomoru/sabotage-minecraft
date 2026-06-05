@@ -2,21 +2,32 @@
 
 Bridge Server が YouTube ライブチャットを取得するための設定手順。
 
-> **MVP の最初のゴールは YouTube なしで debug endpoint から動かすこと。**
-> 以下の設定は **debug → BDS 連携が動いてから** 行ってください。
+> **前提:** Windows ローカルで `debug POST → Minecraft 妨害発動` の E2E が完了していること。
+> 以下は **Mac または Windows** 上で Bridge を動かし、YouTube Live Chat を接続する手順です。
 
 ---
 
-## 必要なもの（手元作業）
+## ゴール
+
+```txt
+YouTube Live Chat (!slow / !hole / !block …)
+  → Bridge (NormalizedStreamEvent → SabotageEvent)
+  → Minecraft Addon ポーリング
+  → ゲーム内効果発動
+```
+
+---
+
+## 必要なもの
 
 | 項目 | 用途 |
 |------|------|
 | Google Cloud Project | API 利用 |
 | YouTube Data API v3 有効化 | ライブチャット取得 |
 | OAuth Client ID / Secret | Bridge 認証 |
-| Refresh Token | 自動更新 |
-| YouTube チャンネル ID | 任意（将来） |
-| 配信ごとの Video ID | `liveChatId` 解決 |
+| Refresh Token | 自動更新（初回 OAuth で取得） |
+| 配信ごとの Video ID | `activeLiveChatId` 解決 |
+| YouTube チャンネル ID | 任意（将来用） |
 
 ---
 
@@ -24,15 +35,31 @@ Bridge Server が YouTube ライブチャットを取得するための設定手
 
 1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクト作成
 2. **API とサービス > ライブラリ** で **YouTube Data API v3** を有効化
-3. **OAuth 同意画面** を設定（外部 / テストユーザーに自分を追加）
-4. **認証情報 > OAuth クライアント ID** を作成（種類: ウェブアプリケーション）
-5. リダイレクト URI: `http://localhost:8787/auth/youtube/callback`
+3. **OAuth 同意画面** を設定
+   - ユーザータイプ: **外部**
+   - テストユーザーに **配信に使う Google アカウント** を追加
+4. **認証情報 > OAuth クライアント ID** を作成
+   - 種類: **ウェブアプリケーション**
+5. **承認済みのリダイレクト URI** に **両方** 登録（ブラウザの開き方でどちらか使うため）
+
+```txt
+http://localhost:8787/auth/youtube/callback
+http://127.0.0.1:8787/auth/youtube/callback
+```
+
+6. 発行された **クライアント ID** と **クライアント シークレット** を控える
 
 ---
 
 ## 2. Bridge `.env` 設定
 
+`bridge/.env.example` をコピーして `bridge/.env` を作成（または更新）。
+
 ```env
+PORT=8787
+NODE_ENV=development
+BRIDGE_API_KEY=change-me
+
 ENABLE_YOUTUBE=true
 ENABLE_YOUTUBE_CHAT=true
 
@@ -41,56 +68,201 @@ YOUTUBE_CLIENT_SECRET=your-client-secret
 YOUTUBE_REDIRECT_URI=http://localhost:8787/auth/youtube/callback
 YOUTUBE_REFRESH_TOKEN=
 YOUTUBE_CHANNEL_ID=
-YOUTUBE_LIVE_VIDEO_ID=your-live-video-id
+YOUTUBE_LIVE_VIDEO_ID=
+
+ENABLE_TWITCH=false
+ENABLE_SUPER_CHAT_EVENTS=false
+ENABLE_MEMBER_EVENTS=false
+ENABLE_STRONG_EFFECTS=false
 ```
 
-最初の動作確認だけなら `ENABLE_YOUTUBE=false` のままで OK。
+**重要:** 次の **両方** が `true` であること。
+
+```txt
+ENABLE_YOUTUBE=true
+ENABLE_YOUTUBE_CHAT=true
+```
+
+Addon 側 `addon/behavior_packs/sabotage_behavior/scripts/config.js` の `bridge.apiKey` も `change-me`（または `.env` の `BRIDGE_API_KEY`）と一致させる。
+
+BDS にコピーした Pack も同じ `config.js` であることを確認する。
 
 ---
 
-## 3. Refresh Token 取得
+## 3. Refresh Token 取得（初回 OAuth）
 
-Bridge を起動後、ブラウザで:
+`YOUTUBE_REFRESH_TOKEN` が空でも OAuth 開始は可能（Client ID / Secret のみ必要）。
+
+```bash
+cd bridge
+npm install   # 初回のみ
+npm run dev
+```
+
+ブラウザで開く（どちらでも可）:
 
 ```txt
 http://127.0.0.1:8787/auth/youtube
+http://localhost:8787/auth/youtube
 ```
 
-Google 認証後、コールバックレスポンスの `refreshToken` を `.env` の `YOUTUBE_REFRESH_TOKEN` に保存。
+Google 認証後、コールバック JSON の `refreshToken` を `bridge/.env` の `YOUTUBE_REFRESH_TOKEN` に保存し、Bridge を再起動。
 
-**本番では refresh token をログや API レスポンスに出さない。** 開発時のみコールバックで受け取る。
+**開発環境 (`NODE_ENV=development`) のみ** レスポンスに `refreshToken` を含める。本番では返さない。
 
----
+### OAuth エラー時の確認
 
-## 4. liveChatId の解決
-
-Bridge は `YOUTUBE_LIVE_VIDEO_ID` から `videos.list` で `activeLiveChatId` を自動取得。
-
-配信開始後に ID を設定し、Bridge を再起動。
-
----
-
-## 5. チャット取得方式
-
-`liveChatMessages.list` をポーリング（API の `pollingIntervalMillis` に従う）。
+```txt
+- GCP のリダイレクト URI に localhost と 127.0.0.1 の両方があるか
+- bridge/.env の YOUTUBE_REDIRECT_URI が GCP と一致しているか
+- OAuth 同意画面のテストユーザーに自分のアカウントが入っているか
+- YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET が正しいか
+```
 
 ---
 
-## 6. 取得イベント種別
+## 4. `YOUTUBE_LIVE_VIDEO_ID` の設定
+
+1. YouTube で **テスト配信（または本番配信）をライブ開始**
+2. 配信 URL から Video ID を取得
+
+```txt
+https://www.youtube.com/watch?v=XXXXXXXXXXX
+                              ^^^^^^^^^^^
+                              これが YOUTUBE_LIVE_VIDEO_ID
+```
+
+3. `bridge/.env` に設定して Bridge を再起動
+
+Bridge は `videos.list` で `activeLiveChatId` を自動解決する。
+
+### 期待ログ
+
+```txt
+[OK] YouTube live chat connected: <liveChatId>
+```
+
+ライブ開始前・終了後に `activeLiveChatId` が取れない場合、Bridge 全体は落ちず **debug platform のみ継続** する（`ENABLE_YOUTUBE=true` でもチャット接続失敗は警告ログのみ）。
+
+---
+
+## 5. YouTube コメント → イベント確認
+
+ライブチャットで以下を投稿:
+
+```txt
+!slow
+!blind
+!chicken
+!hole
+!block
+```
+
+### 期待ログ（Bridge）
+
+```txt
+[INFO] Received command: !hole from <name> (youtube/normalChat)
+[OK] Event queued: hole by <name>
+```
+
+クールダウンで無視された場合:
+
+```txt
+[INFO] Ignored command due to cooldown: !hole from <name>
+```
+
+---
+
+## 6. Minecraft 連携確認
+
+Bridge + BDS を起動し、ゲーム内で:
+
+```txt
+/scriptevent sab:command start
+```
+
+その後ライブチャットで `!block` / `!hole` 等を投稿。
+
+### 期待ログ（Bridge）
+
+```txt
+[OK] Event queued: block by <name>
+[INFO] Minecraft polled events: 1
+[INFO] Minecraft acked events: 1
+```
+
+### 期待ログ（BDS）
+
+```txt
+[SAB] Bridge connected
+[SAB] Received events: 1
+[SAB] Queue event from bridge: block
+[SAB] Processing queued event: block
+[SAB][BROADCAST] Effect executed: block
+[SAB] Acked events: 1
+```
+
+---
+
+## 7. 推奨手順（安全な順番）
+
+```txt
+1. Google Cloud で OAuth Client ID を作成
+2. bridge/.env に CLIENT_ID / SECRET を入れる
+3. ENABLE_YOUTUBE=true / ENABLE_YOUTUBE_CHAT=true
+4. Bridge 起動 (npm run dev)
+5. /auth/youtube で Refresh Token 取得 → .env に保存 → 再起動
+6. テスト用ライブを開始
+7. YOUTUBE_LIVE_VIDEO_ID を設定 → Bridge 再起動
+8. ライブチャットで !block を確認
+9. BDS 起動 → /scriptevent sab:command start → ゲーム内発動確認
+```
+
+---
+
+## 8. トラブルシュート
+
+### Bridge で YouTube が起動しない
+
+```txt
+- YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN
+- YOUTUBE_LIVE_VIDEO_ID（配信がライブ中か）
+- ENABLE_YOUTUBE=true かつ ENABLE_YOUTUBE_CHAT=true
+```
+
+### コメントは取れるが Minecraft で発動しない
+
+```txt
+- /scriptevent sab:command start 済みか
+- Addon config.js の bridge.baseUrl (http://127.0.0.1:8787)
+- Addon config.js の bridge.apiKey = BRIDGE_API_KEY
+- BDS 側 Pack の config.js が最新か（手動コピー）
+- GET /api/minecraft/events / POST ack がログに出るか
+```
+
+### `EADDRINUSE :8787`
+
+前の Bridge プロセスが残っている。`npm run dev:local:stop` または該当 PID を終了。
+
+---
+
+## 9. 取得イベント種別（MVP 範囲）
 
 | 種別 | MVP | 備考 |
 |------|-----|------|
 | 通常コメント | 対応 | `!command` 解析 |
-| Super Chat | 将来 | 演出ルーレット |
-| Super Sticker | 将来 | 演出ルーレット |
-| メンバー | 将来 | 特別演出 |
+| Super Chat | 無効 | `ENABLE_SUPER_CHAT_EVENTS=false` |
+| Super Sticker | 無効 | 同上 |
+| メンバー milestone | 無効 | `ENABLE_MEMBER_EVENTS=false` |
+
+チャンネルメンバーが通常コメントで `!hole` を送る場合は **通常チャットとして処理** される。
 
 ---
 
-## 7. 注意事項
+## 10. 注意事項
 
-- OAuth 情報は **Bridge Server のみ**（Addon には置かない）
-- API クォータに注意
+- OAuth / Refresh Token は **Bridge のみ**（Addon には置かない）
+- API クォータに注意（テスト配信で十分確認してから本番）
 - Twitch 設定: [twitch-api-setup.md](./twitch-api-setup.md)
 
 ---

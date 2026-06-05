@@ -395,11 +395,37 @@ Bridge のみ / BDS のみが必要なときは `bridge:dev` と `bds/bedrock_se
 2. BDS + Behavior Pack 読み込み             ← 完了
 3. /scriptevent start → フィールド生成      ← 完了
 4. Bridge ↔ Addon 連携 end-to-end           ← 完了
-5. YouTube OAuth + Live Chat                ← 現在ここ
-6. Super Chat 演出ルーレット
-7. Twitch EventSub
-8. 追加モード（vote / roulette / wolf_capture_race）
+5. YouTube OAuth + Live Chat                ← 完了（2026-06-05 動作確認）
+6. 初回配信運用チェックリスト                ← 現在ここ（stream-runbook.md）
+7. Super Chat 演出ルーレット
+8. Twitch EventSub
+9. 追加モード（vote / roulette / wolf_capture_race）
 ```
+
+### YouTube Live Chat 連動（確認済み 2026-06-05）
+
+```txt
+[x] Google Cloud OAuth Client 作成
+[x] YouTube Data API v3 有効化
+[x] GET /auth/youtube で Refresh Token 取得
+[x] bridge/.env に YOUTUBE_REFRESH_TOKEN 設定
+[x] YOUTUBE_LIVE_VIDEO_ID 設定（限定公開ライブ可）
+[x] Bridge: YouTube live chat connected
+[x] YouTube チャット !block / !hole / !slow 等を Bridge が認識
+[x] Bridge → BDS ポーリング / ACK
+[x] Minecraft 内で効果発動
+```
+
+主要ルート:
+
+```txt
+debug POST        → Bridge → Minecraft   OK
+YouTube Live Chat → Bridge → Minecraft   OK
+```
+
+**秘密情報:** `YOUTUBE_REFRESH_TOKEN` / `YOUTUBE_CLIENT_SECRET` / `bridge/.env` は Git 管理外。コミットしない。
+
+手順: [youtube-api-setup.md](./youtube-api-setup.md) / 配信運用: [stream-runbook.md](./stream-runbook.md)
 
 ---
 
@@ -408,17 +434,29 @@ Bridge のみ / BDS のみが必要なときは `bridge:dev` と `bds/bedrock_se
 ### Bridge debug → Minecraft E2E
 
 ```txt
-[ ] npm run dev:local または bridge:dev + BDS 起動
-[ ] bridge/.env（BRIDGE_API_KEY = config.js の bridge.apiKey）
-[ ] /health → ok: true
-[ ] ゲーム内 /scriptevent sab:command start
-[ ] Invoke-RestMethod で POST /api/debug/events（PowerShell）
-[ ] BDS: [SAB] Bridge connected
-[ ] BDS: [SAB] Received events / Queue event from bridge
-[ ] BDS: [SAB] Processing queued event / Effect executed
-[ ] BDS: [SAB] Acked events
-[ ] Bridge: Debug event accepted / Minecraft polled events / Minecraft acked events
-[ ] block / hole / slow / blind / chicken を各1回
+[x] npm run dev:local または bridge:dev + BDS 起動
+[x] bridge/.env（BRIDGE_API_KEY = config.js の bridge.apiKey）
+[x] /health → ok: true
+[x] ゲーム内 /scriptevent sab:command start
+[x] Invoke-RestMethod で POST /api/debug/events（PowerShell）
+[x] BDS: [SAB] Bridge connected
+[x] BDS: [SAB] Received events / Queue event from bridge
+[x] BDS: [SAB] Processing queued event / Effect executed
+[x] BDS: [SAB] Acked events
+[x] Bridge: Debug event accepted / Minecraft polled events / Minecraft acked events
+[x] block / hole / slow / blind / chicken を各1回
+```
+
+### YouTube Live Chat → Minecraft E2E
+
+```txt
+[x] ENABLE_YOUTUBE=true / ENABLE_YOUTUBE_CHAT=true
+[x] /auth/youtube で Refresh Token 取得
+[x] YOUTUBE_LIVE_VIDEO_ID 設定（ライブ中）
+[x] Bridge: YouTube live chat connected
+[x] ライブチャット !block / !hole 等 → Bridge Event queued
+[x] BDS: Effect executed
+[x] ENABLE_STRONG_EFFECTS=false
 ```
 
 PowerShell で debug 投入（`curl` エイリアス不可）:
@@ -466,6 +504,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8787/api/debug/events" -Method POST `
 | [addon-description.md](./addon-description.md) | 配布・紹介文 |
 | [game-design.md](./game-design.md) | ルール・将来モード |
 | [bds-setup.md](./bds-setup.md) | BDS 導入・配信前チェック |
+| [stream-runbook.md](./stream-runbook.md) | **初回配信 運用チェックリスト** |
 | [youtube-api-setup.md](./youtube-api-setup.md) | YouTube API |
 | [twitch-api-setup.md](./twitch-api-setup.md) | Twitch EventSub |
 | [research-java-oss.md](./research-java-oss.md) | Java OSS 調査 |

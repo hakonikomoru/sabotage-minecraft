@@ -1,5 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { config, isDevelopment, isYoutubeConfigured } from "../config.js";
+import {
+  config,
+  isDevelopment,
+  isYoutubeOAuthClientConfigured,
+} from "../config.js";
 import { logger } from "../logs/logger.js";
 import type { PlatformManager } from "../platforms/index.js";
 import { getAuthUrl, exchangeCodeForTokens } from "../platforms/youtube/auth.js";
@@ -19,14 +23,20 @@ export function registerRoutes(
   app: FastifyInstance,
   getPlatformManager: () => PlatformManager | null,
 ): void {
-  app.get("/health", async () => ({
-    ok: true,
-    service: "sabotage-minecraft-bridge",
-    platforms: {
-      youtube: config.platforms.enableYoutube,
-      twitch: config.platforms.enableTwitch,
-    },
-  }));
+  app.get("/health", async () => {
+    const platforms = getPlatformManager();
+    return {
+      ok: true,
+      service: "sabotage-minecraft-bridge",
+      platforms: {
+        youtube: config.platforms.enableYoutube,
+        youtubeChat: config.safety.enableYoutubeChat,
+        youtubeOAuthConfigured: isYoutubeOAuthClientConfigured(),
+        youtubeLiveChatConnected: platforms?.isYoutubeConnected() ?? false,
+        twitch: config.platforms.enableTwitch,
+      },
+    };
+  });
 
   app.get("/api/minecraft/events", async (request, reply) => {
     if (!verifyBridgeApiKey(request.headers["x-bridge-api-key"])) {
@@ -99,27 +109,48 @@ export function registerRoutes(
   );
 
   app.get("/auth/youtube", async (_request, reply) => {
-    if (!isYoutubeConfigured()) {
-      return reply.code(503).send({ error: "YouTube OAuth is not configured" });
+    if (!isYoutubeOAuthClientConfigured()) {
+      return reply.code(503).send({
+        error:
+          "YouTube OAuth client is not configured (YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET)",
+      });
     }
     return reply.redirect(getAuthUrl());
   });
 
-  app.get<{ Querystring: { code?: string } }>(
+  app.get<{ Querystring: { code?: string; error?: string } }>(
     "/auth/youtube/callback",
     async (request, reply) => {
+      if (!isYoutubeOAuthClientConfigured()) {
+        return reply.code(503).send({
+          error:
+            "YouTube OAuth client is not configured (YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET)",
+        });
+      }
+
+      const oauthError = request.query.error;
+      if (oauthError) {
+        return reply.code(400).send({ error: oauthError });
+      }
+
       const code = request.query.code;
       if (!code) {
         return reply.code(400).send({ error: "missing code" });
       }
-      const tokens = await exchangeCodeForTokens(code);
-      logger.ok("YouTube OAuth tokens received");
-      logger.info("Save YOUTUBE_REFRESH_TOKEN in .env");
-      return {
-        ok: true,
-        hasRefreshToken: Boolean(tokens.refresh_token),
-        refreshToken: isDevelopment() ? (tokens.refresh_token ?? null) : null,
-      };
+
+      try {
+        const tokens = await exchangeCodeForTokens(code);
+        logger.ok("YouTube OAuth tokens received");
+        logger.info("Save YOUTUBE_REFRESH_TOKEN in bridge/.env and restart Bridge");
+        return {
+          ok: true,
+          hasRefreshToken: Boolean(tokens.refresh_token),
+          refreshToken: isDevelopment() ? (tokens.refresh_token ?? null) : null,
+        };
+      } catch (error) {
+        logger.error("YouTube OAuth callback failed", error);
+        return reply.code(500).send({ error: "token exchange failed" });
+      }
     },
   );
 }

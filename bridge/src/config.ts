@@ -1,4 +1,12 @@
-import "dotenv/config";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+
+const bridgeRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
+dotenv.config({ path: path.join(bridgeRoot, ".env") });
 
 export const config = {
   port: Number(process.env.PORT ?? 8787),
@@ -57,11 +65,13 @@ export function isDevelopment(): boolean {
   return config.nodeEnv !== "production";
 }
 
+export function isYoutubeOAuthClientConfigured(): boolean {
+  return Boolean(config.youtube.clientId && config.youtube.clientSecret);
+}
+
 export function isYoutubeConfigured(): boolean {
   return Boolean(
-    config.youtube.clientId &&
-      config.youtube.clientSecret &&
-      config.youtube.refreshToken,
+    isYoutubeOAuthClientConfigured() && config.youtube.refreshToken,
   );
 }
 

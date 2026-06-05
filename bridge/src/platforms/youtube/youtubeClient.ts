@@ -68,14 +68,8 @@ export class YoutubeClient {
     const youtube = getYoutubeClient();
     const response = await youtube.liveChatMessages.list({
       liveChatId: this.liveChatId!,
-      part: [
-        "id",
-        "snippet",
-        "authorDetails",
-        "superChatDetails",
-        "superStickerDetails",
-        "memberMilestoneChatDetails",
-      ],
+      // API supports only id, snippet, authorDetails — Super Chat etc. live under snippet.
+      part: ["id", "snippet", "authorDetails"],
       pageToken: this.nextPageToken,
     });
 

@@ -1,4 +1,4 @@
-import { system } from "@minecraft/server";
+import { system, world, Difficulty } from "@minecraft/server";
 import { CONFIG, GAME_STATES } from "./config.js";
 import {
   getGameState,
@@ -73,6 +73,14 @@ async function pollBridge() {
 }
 
 function bootstrap() {
+  try {
+    world.setDifficulty(Difficulty.Peaceful);
+  } catch (error) {
+    console.warn(
+      `[SAB] Could not set difficulty to peaceful: ${error?.message ?? error}`,
+    );
+  }
+
   registerChatCommands();
   setGameState(GAME_STATES.READY);
 

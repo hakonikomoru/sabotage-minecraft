@@ -5,7 +5,7 @@ import type {
   StreamEventSource,
 } from "../../types.js";
 
-type LiveChatMessage = youtube_v3.Schema$LiveChatMessage & {
+type LiveChatSnippet = youtube_v3.Schema$LiveChatMessageSnippet & {
   superChatDetails?: {
     userComment?: string | null;
     amountMicros?: string | null;
@@ -20,19 +20,26 @@ type LiveChatMessage = youtube_v3.Schema$LiveChatMessage & {
   };
 };
 
+type LiveChatMessage = youtube_v3.Schema$LiveChatMessage & {
+  snippet?: LiveChatSnippet;
+};
+
 function getAuthorName(
   authorDetails: youtube_v3.Schema$LiveChatMessageAuthorDetails | undefined,
 ): string {
   return authorDetails?.displayName ?? authorDetails?.channelId ?? "unknown";
 }
 
-function getSource(message: LiveChatMessage): StreamEventSource {
-  const details = message.authorDetails;
-  if (details?.isChatOwner) return "owner";
-  if (details?.isChatModerator) return "moderator";
-  if (message.superChatDetails) return "superChat";
-  if (message.superStickerDetails) return "superSticker";
-  if (details?.isChatSponsor) return "member";
+function getSource(
+  snippet: LiveChatSnippet | undefined,
+  authorDetails: youtube_v3.Schema$LiveChatMessageAuthorDetails | undefined,
+): StreamEventSource {
+  if (authorDetails?.isChatOwner) return "owner";
+  if (authorDetails?.isChatModerator) return "moderator";
+  if (!snippet) return "normalChat";
+  if (snippet.superChatDetails) return "superChat";
+  if (snippet.superStickerDetails) return "superSticker";
+  if (snippet.memberMilestoneChatDetails) return "member";
   return "normalChat";
 }
 
@@ -43,29 +50,30 @@ export function normalizeLiveChatMessage(
     return null;
   }
 
+  const snippet = message.snippet;
   const authorDetails = message.authorDetails;
   const authorChannelId = authorDetails?.channelId ?? "unknown";
-  const source = getSource(message);
+  const source = getSource(snippet, authorDetails);
 
-  let messageText = message.snippet.displayMessage ?? "";
+  let messageText = snippet.displayMessage ?? "";
   let amountMicros: number | undefined;
   let currency: string | undefined;
 
-  if (message.superChatDetails) {
+  if (snippet.superChatDetails) {
     messageText =
-      message.superChatDetails.userComment ??
-      message.snippet.displayMessage ??
+      snippet.superChatDetails.userComment ??
+      snippet.displayMessage ??
       "";
-    amountMicros = Number(message.superChatDetails.amountMicros ?? 0);
-    currency = message.superChatDetails.currency ?? undefined;
-  } else if (message.superStickerDetails) {
-    messageText = message.snippet.displayMessage ?? "Super Sticker";
-    amountMicros = Number(message.superStickerDetails.amountMicros ?? 0);
-    currency = message.superStickerDetails.currency ?? undefined;
-  } else if (message.memberMilestoneChatDetails) {
+    amountMicros = Number(snippet.superChatDetails.amountMicros ?? 0);
+    currency = snippet.superChatDetails.currency ?? undefined;
+  } else if (snippet.superStickerDetails) {
+    messageText = snippet.displayMessage ?? "Super Sticker";
+    amountMicros = Number(snippet.superStickerDetails.amountMicros ?? 0);
+    currency = snippet.superStickerDetails.currency ?? undefined;
+  } else if (snippet.memberMilestoneChatDetails) {
     messageText =
-      message.memberMilestoneChatDetails.userComment ??
-      message.snippet.displayMessage ??
+      snippet.memberMilestoneChatDetails.userComment ??
+      snippet.displayMessage ??
       "";
   }
 
@@ -80,7 +88,7 @@ export function normalizeLiveChatMessage(
     isOwner: Boolean(authorDetails?.isChatOwner),
     isModerator: Boolean(authorDetails?.isChatModerator),
     isMember: Boolean(authorDetails?.isChatSponsor),
-    publishedAt: message.snippet.publishedAt,
+    publishedAt: snippet.publishedAt!,
   };
 }
 

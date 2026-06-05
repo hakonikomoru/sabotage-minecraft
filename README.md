@@ -9,6 +9,7 @@ YouTube / Twitch ライブ連動の Minecraft **Bedrock Dedicated Server** 向�
 | 用途 | ドキュメント |
 |------|-------------|
 | 配信企画・世界観 | [docs/worldview.md](docs/worldview.md) |
+| **初回配信 運用チェックリスト** | [docs/stream-runbook.md](docs/stream-runbook.md) |
 | 配布・紹介文 | [docs/addon-description.md](docs/addon-description.md) |
 | ゲーム仕様 | [docs/game-design.md](docs/game-design.md) |
 | **AI / 開発者向け詳細** | [docs/project-sync.md](docs/project-sync.md) |
@@ -158,36 +159,16 @@ cp -R addon/behavior_packs/sabotage_behavior /path/to/bds/worlds/YourWorld/behav
 
 （BDS Script API によっては `!sab` チャットが使えない。上記 `/scriptevent` が動作確認用の正式コマンド）
 
-### 6. 次: YouTube Live Chat 連携
+### 6. YouTube Live Chat 連携（動作確認済み）
 
-debug E2E 完了後。詳細: [docs/youtube-api-setup.md](docs/youtube-api-setup.md)
+`YouTube Live Chat → Bridge → BDS → Minecraft` まで通過済み。
 
-**手順概要:**
+| ドキュメント | 用途 |
+|-------------|------|
+| [docs/youtube-api-setup.md](docs/youtube-api-setup.md) | OAuth / Video ID 設定 |
+| [docs/stream-runbook.md](docs/stream-runbook.md) | **初回配信 運用チェックリスト** |
 
-1. Google Cloud で YouTube Data API v3 + OAuth クライアント作成
-2. `bridge/.env` を更新:
-
-```env
-ENABLE_YOUTUBE=true
-ENABLE_YOUTUBE_CHAT=true
-YOUTUBE_CLIENT_ID=...
-YOUTUBE_CLIENT_SECRET=...
-YOUTUBE_REFRESH_TOKEN=...
-YOUTUBE_LIVE_VIDEO_ID=...   # 配信中の動画 ID（ライブ開始後）
-```
-
-3. Refresh Token 取得: Bridge 起動後 → ブラウザで `http://127.0.0.1:8787/auth/youtube`
-4. `npm run dev:local` で Bridge + BDS 起動
-5. ゲーム内 `/scriptevent sab:command start`
-6. YouTube ライブチャットで `!slow` / `!hole` 等を投稿 → BDS ログで効果確認
-
-Bridge ログの目安:
-
-```txt
-[OK] YouTube live chat connected: ...
-[INFO] Received command: !hole from viewer (youtube/normalChat)
-[INFO] Event queued: hole by viewer
-```
+配信当日の流れ: Bridge + BDS 起動 → ライブ開始 → `YOUTUBE_LIVE_VIDEO_ID` 設定 → Bridge 再起動 → `/scriptevent sab:command start` → チャットで `!block` 等
 
 ---
 

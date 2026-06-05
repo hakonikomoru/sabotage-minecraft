@@ -11,9 +11,11 @@ export function getOAuthClient() {
       config.youtube.clientSecret,
       config.youtube.redirectUri,
     );
-    oauthClient.setCredentials({
-      refresh_token: config.youtube.refreshToken,
-    });
+    if (config.youtube.refreshToken) {
+      oauthClient.setCredentials({
+        refresh_token: config.youtube.refreshToken,
+      });
+    }
   }
   return oauthClient;
 }

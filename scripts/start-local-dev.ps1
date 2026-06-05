@@ -9,6 +9,24 @@ if (-not (Test-Path $bdsExe)) {
   exit 1
 }
 
+$serverProps = Join-Path $bdsRoot "server.properties"
+if (Test-Path $serverProps) {
+  $lines = Get-Content $serverProps
+  $found = $false
+  $updated = foreach ($line in $lines) {
+    if ($line -match '^difficulty=') {
+      $found = $true
+      'difficulty=peaceful'
+    } else {
+      $line
+    }
+  }
+  if (-not $found) {
+    $updated += 'difficulty=peaceful'
+  }
+  Set-Content -Path $serverProps -Value $updated -Encoding utf8
+}
+
 Write-Host "Starting Bridge in a new window (port 8787)..."
 $bridgeShell = Start-Process powershell `
   -WorkingDirectory $repoRoot `

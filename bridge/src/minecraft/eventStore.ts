@@ -124,15 +124,17 @@ export class EventStore {
     const authorId = event.authorId ?? event.authorName;
     if (!this.cooldown.checkUser(authorId)) {
       this.ignoredEvents += 1;
-      logger.warn(
-        `Ignored command due to cooldown: !${resolved.command} (${event.authorName})`,
+      logger.info(
+        `Ignored command due to cooldown: !${resolved.command} from ${event.authorName}`,
       );
       return;
     }
 
     if (!this.cooldown.checkCommand(definition)) {
       this.ignoredEvents += 1;
-      logger.warn(`Ignored command due to cooldown: !${resolved.command}`);
+      logger.info(
+        `Ignored command due to cooldown: !${resolved.command} from ${event.authorName}`,
+      );
       return;
     }
 

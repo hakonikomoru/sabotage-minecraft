@@ -146,19 +146,21 @@ curl -X POST http://127.0.0.1:8787/api/debug/events \
 
 ## 配信前チェックリスト
 
+詳細な5段階手順（配信前〜終了後）: **[stream-runbook.md](./stream-runbook.md)**
+
 ```txt
-[ ] BDS + Behavior Pack 読み込み確認
-[ ] Bridge 起動（debug または YouTube 連携）
-[ ] bridge.apiKey と BRIDGE_API_KEY が一致
-[ ] 平坦な開始位置を決めた
-[ ] !sab start → フィールド生成 OK
-[ ] debug または YouTube で !hole / !block 発動確認
-[ ] !sab reset でフィールドが片付く
-[ ] ENABLE_STRONG_EFFECTS=false を確認
-[ ] 配信開始前に !sab clear でキュー空
+[x] BDS + Behavior Pack 読み込み確認
+[x] Bridge 起動（YouTube Live Chat 連携済み）
+[x] bridge.apiKey と BRIDGE_API_KEY が一致
+[ ] 平坦な開始位置を決めた（本番直前）
+[x] /scriptevent sab:command start → フィールド生成 OK
+[x] YouTube で !hole / !block 発動確認
+[x] /scriptevent sab:command reset でフィールドが片付く
+[x] ENABLE_STRONG_EFFECTS=false を確認
+[ ] 配信開始前に /scriptevent sab:command clear でキュー空
 ```
 
-YouTube API 設定: [youtube-api-setup.md](./youtube-api-setup.md)（debug 動作後で OK）
+YouTube API 設定: [youtube-api-setup.md](./youtube-api-setup.md)
 
 ---
 

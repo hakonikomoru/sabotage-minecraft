@@ -1,4 +1,5 @@
 import { world } from "@minecraft/server";
+import { CONFIG } from "../config.js";
 import { getModeConfig } from "./mode-config.js";
 import {
   forEachInnerCell,
@@ -7,8 +8,15 @@ import {
   setBlockSafe,
 } from "../utils/blocks.js";
 import { setField, getCurrentMode } from "../state.js";
+import {
+  buildSkyArena,
+  formatArenaSummary,
+  getArenaStartLocation,
+  restoreArenaBlocks,
+  teleportPlayerToArenaStart,
+} from "./arena.js";
 
-/** Floor blocks that may be overwritten when generating the field */
+/** Floor blocks that may be overwritten when generating the field (ground mode) */
 const REPLACEABLE_FLOOR = new Set([
   "minecraft:air",
   "minecraft:grass_block",
@@ -21,6 +29,8 @@ const REPLACEABLE_FLOOR = new Set([
   "minecraft:black_concrete",
   "minecraft:yellow_concrete",
   "minecraft:white_wool",
+  "minecraft:gray_concrete",
+  "minecraft:glass",
   "minecraft:water",
   "minecraft:flowing_water",
 ]);
@@ -29,6 +39,10 @@ const REPLACEABLE_FLOOR = new Set([
  * @returns {{ ok: true } | { ok: false, reason: string }}
  */
 export function validateFieldSite(player, modeId = getCurrentMode()) {
+  if (CONFIG.arena.enabled) {
+    return { ok: true };
+  }
+
   const cfg = getModeConfig(modeId);
   const loc = player.location;
   const originX =
@@ -79,7 +93,7 @@ function captureOriginalBlocks(dimension, originX, originZ, y, structureSize) {
   return blocks;
 }
 
-export function buildField(player, modeId = getCurrentMode()) {
+function buildGroundField(player, modeId) {
   const cfg = getModeConfig(modeId);
   const validation = validateFieldSite(player, modeId);
   if (!validation.ok) {
@@ -119,7 +133,7 @@ export function buildField(player, modeId = getCurrentMode()) {
     }
   }
 
-  const field = {
+  return {
     originX,
     originZ,
     y,
@@ -131,7 +145,20 @@ export function buildField(player, modeId = getCurrentMode()) {
     baseBlock: cfg.baseBlock,
     borderBlock: cfg.borderBlock,
     originalBlocks,
+    arena: { enabled: false },
+    startPlayerOriginalLocation: null,
   };
+}
+
+export function buildField(player, modeId = getCurrentMode()) {
+  const field = CONFIG.arena.enabled
+    ? buildSkyArena(player, modeId)
+    : buildGroundField(player, modeId);
+
+  if (field?.error) {
+    return field;
+  }
+
   setField(field);
   return field;
 }
@@ -141,6 +168,11 @@ export function destroyField(field) {
   if (!field?.originalBlocks?.length) {
     return false;
   }
+
+  if (field.arena?.enabled) {
+    return restoreArenaBlocks(field);
+  }
+
   const dimension = getDimension(field);
   if (!dimension) return false;
 
@@ -203,6 +235,11 @@ export function getDimensionFromField(field) {
 }
 
 export function teleportToFieldStart(player, field) {
+  if (field?.arena?.enabled && CONFIG.arena.teleportPlayerOnStart) {
+    teleportPlayerToArenaStart(player, field);
+    return;
+  }
+
   const startX = field.originX - 1;
   const startZ = field.originZ + Math.floor(field.size / 2);
   player.teleport({
@@ -211,3 +248,5 @@ export function teleportToFieldStart(player, field) {
     z: startZ,
   });
 }
+
+export { formatArenaSummary, getArenaStartLocation };

@@ -1,4 +1,5 @@
 import { CONFIG, GAME_STATES, MODE_DISPLAY_NAMES } from "../config.js";
+import { world } from "@minecraft/server";
 import {
   setGameState,
   setMainPlayerName,
@@ -19,7 +20,9 @@ import {
   buildField,
   destroyField,
   teleportToFieldStart,
+  formatArenaSummary,
 } from "./fill-field.js";
+import { getMainPlayer } from "../utils/players.js";
 import {
   getProgress,
   getGameSnapshot,
@@ -78,16 +81,34 @@ async function setupFillGame(player, modeId, onTimerFinish) {
   broadcast(`Starting ${modeId}...`);
 
   const cfg = getModeConfig(modeId);
+
+  if (CONFIG.arena.enabled) {
+    broadcast("Building sky arena...");
+  }
+
   const field = buildField(player, modeId);
   if (field?.error) {
-    broadcast(field.error);
+    if (CONFIG.arena.enabled) {
+      broadcast(`Arena generation failed: ${field.error}`);
+    } else {
+      broadcast(field.error);
+    }
     return null;
+  }
+
+  if (CONFIG.arena.enabled && field.arena?.enabled) {
+    const summary = formatArenaSummary(field);
+    broadcast(`Sky arena generated: ${summary}`);
   }
 
   broadcast("Field generated.");
   removeWhiteWoolFromInventory(player);
   giveWhiteWool(player, cfg.initialWoolAmount);
   teleportToFieldStart(player, field);
+
+  if (CONFIG.arena.enabled && CONFIG.arena.teleportPlayerOnStart) {
+    broadcast("Teleported player to arena.");
+  }
 
   gameTimer.start(onTimerFinish, cfg.durationSeconds);
   setGameState(GAME_STATES.RUNNING);
@@ -153,9 +174,32 @@ export function resetGame() {
   if (field) {
     const restored = destroyField(field);
     if (restored) {
-      broadcast("Field terrain restored.");
+      if (field.arena?.enabled) {
+        broadcast("Arena restored.");
+      } else {
+        broadcast("Field terrain restored.");
+      }
     } else {
       broadcast("Field data incomplete - reset state only.");
+    }
+
+    if (
+      field.startPlayerOriginalLocation &&
+      CONFIG.arena.restorePlayerOnReset
+    ) {
+      const player = getMainPlayer();
+      if (player) {
+        const original = field.startPlayerOriginalLocation;
+        try {
+          const dimension = world.getDimension(original.dimensionId);
+          player.teleport(
+            { x: original.x, y: original.y, z: original.z },
+            { dimension },
+          );
+        } catch {
+          // ignore teleport failure on reset
+        }
+      }
     }
   }
   clearField();

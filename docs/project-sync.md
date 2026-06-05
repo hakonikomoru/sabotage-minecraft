@@ -57,6 +57,7 @@ debug POST       ──┘         │
 - Minecraft Addon は **プラットフォーム非依存**（`SabotageEvent` の `command` のみ処理）
 - OAuth / API キーは **Bridge のみ**（Addon は `bridge.apiKey` のみ）
 - **固定座標禁止** — `!sab start` 実行位置基準。locate / 自動 TP は MVP 外
+- **空中アリーナ** — `start` 時に実行者位置の上空（+24）に 24×24 床を生成し、中央に 12×12 フィールド。`reset` で復元（`config.js` の `arena`）
 - 強妨害・即死・TNT は **初期 OFF**（[safety-policy.md](./safety-policy.md)）
 
 ---
@@ -331,6 +332,7 @@ sabotage-minecraft/
 | `scripts/integrations/bridge-client.js` | server-net HTTP |
 | `scripts/modes/mode-manager.js` | 開始 / 停止 / reset |
 | `scripts/modes/fill-field.js` | フィールド生成・安全確認・復元 |
+| `scripts/modes/arena.js` | 空中アリーナ生成・TP・復元 |
 | `scripts/effects/` | 妨害・応援効果実装 |
 | `scripts/effects/registry.js` | Bedrock 側効果 registry |
 

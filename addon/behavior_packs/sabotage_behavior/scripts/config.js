@@ -65,6 +65,17 @@ export const CONFIG = {
     playerNames: ["hakonikomoru"],
   },
 
+  arena: {
+    enabled: true,
+    yOffset: 24,
+    size: 24,
+    floorBlock: "minecraft:gray_concrete",
+    wallBlock: "minecraft:glass",
+    wallHeight: 2,
+    teleportPlayerOnStart: true,
+    restorePlayerOnReset: true,
+  },
+
   /** Future: named item menu (not implemented in MVP) */
   menuItems: {
     clock: "SAB:menu",

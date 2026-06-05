@@ -7,7 +7,7 @@
 - Minecraft Bedrock Dedicated Server 1.21+
 - Script API 有効
 - `@minecraft/server-net`（BDS 専用）
-- **固定座標不要** — 平坦な場所で `!sab start` する
+- **固定座標不要** — 平坦な場所で `!sab start` する（`arena.enabled=true` 時は空中アリーナを自動生成）
 
 | 対応 | 非対応 |
 |------|--------|

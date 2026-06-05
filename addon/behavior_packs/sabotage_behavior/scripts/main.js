@@ -36,7 +36,7 @@ async function pollBridge() {
 
   pollInFlight = true;
   try {
-    const events = await fetchPendingEvents();
+    const events = await fetchPendingEvents(getGameState());
     updateBridgeConnected(true);
 
     if (events.length > 0) {
@@ -58,7 +58,7 @@ async function pollBridge() {
 
     if (ackIds.length > 0) {
       try {
-        const result = await ackEvents(ackIds);
+        const result = await ackEvents(ackIds, getGameState());
         const acked = result?.acked ?? ackIds.length;
         console.warn(`[SAB] Acked events: ${acked}`);
       } catch (error) {

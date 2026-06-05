@@ -1,4 +1,3 @@
-import { world } from "@minecraft/server";
 import { CONFIG } from "../config.js";
 import { getModeConfig } from "./mode-config.js";
 import {
@@ -238,25 +237,6 @@ export function teleportPlayerToArenaStart(player, field) {
       rotation: start.rotation,
     },
   );
-}
-
-export function restoreArenaBlocks(field) {
-  if (!field?.originalBlocks?.length) {
-    return false;
-  }
-
-  let dimension;
-  try {
-    dimension = world.getDimension(field.dimensionId);
-  } catch {
-    return false;
-  }
-
-  for (const block of field.originalBlocks) {
-    setBlockSafe(dimension, { x: block.x, y: block.y, z: block.z }, block.typeId);
-  }
-
-  return true;
 }
 
 export function formatArenaSummary(field) {

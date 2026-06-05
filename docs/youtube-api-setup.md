@@ -244,6 +244,55 @@ Bridge + BDS を起動し、ゲーム内で:
 
 前の Bridge プロセスが残っている。`npm run dev:local:stop` または該当 PID を終了。
 
+### API クォータ超過（quota exceeded） {#quota}
+
+YouTube Live Chat に **Webhook はない**ため、公式 API のポーリングが必須。無料枠は **1日 10,000 ユニット**、`liveChatMessages.list` は **1回 5 ユニット**（約 **2,000 回/日**）。
+
+| ポール間隔 | 10分ゲーム | 2時間配信 | 24時間常時 |
+|-----------|-----------|----------|-----------|
+| 5秒 | 600U | 7,200U | ❌ 約2.8時間で枯渇 |
+| 15秒（推奨） | 200U | 2,400U | ❌ 約8時間で枯渇 |
+| 43秒+ | 70U | 840U | ✅ 24hギリ可 |
+
+**本リポジトリの対策（実装済み）:**
+
+1. **`YOUTUBE_POLL_ONLY_WHEN_GAME_RUNNING=true`（デフォルト）**  
+   Minecraft が `running` / `paused` の間だけ API を叩く。  
+   Bridge 起動〜`/scriptevent sab:command start` 前は **API ゼロ**。
+
+2. **`YOUTUBE_MIN_POLL_INTERVAL_MS=15000`**  
+   ポール間隔の下限 15 秒（API の `pollingIntervalMillis` より長い方を採用）。
+
+3. **クォータ超過時**  
+   5分〜最大1時間バックオフ。ERROR 連打を停止。
+
+**10分チャレンジ配信（本企画）の目安:** ゲーム中 15 秒間隔 ≒ **200 ユニット/回** → 1日 50 回以上余裕。
+
+**すぐの対処（クォータ枯渇時）:**
+
+```env
+ENABLE_YOUTUBE_CHAT=false
+```
+
+Bridge 再起動 → テストは `POST /api/debug/events`。クォータは **太平洋時間 0:00** 頃リセット。
+
+**本番・長時間配信:**
+
+- [Google Cloud Console](https://console.cloud.google.com/) → YouTube Data API v3 → **クォータの引き上げ** を申請（配信アプリとして審査あり。数千〜数万ユニット/日まで通る例あり）
+- 申請用 PDF 一式: [youtube-quota-application/](./youtube-quota-application/)（01〜07 を番号順に添付）
+- 開発中は `ENABLE_YOUTUBE_CHAT=false` + debug 投入を徹底
+
+**`bridge/.env` 推奨:**
+
+```env
+YOUTUBE_MIN_POLL_INTERVAL_MS=15000
+YOUTUBE_POLL_ONLY_WHEN_GAME_RUNNING=true
+YOUTUBE_IDLE_CHECK_INTERVAL_MS=30000
+YOUTUBE_QUOTA_BACKOFF_MS=300000
+```
+
+`/health` で `sabGameActive` / `youtubeQuotaLimited` を確認できる。
+
 ---
 
 ## 9. 取得イベント種別（MVP 範囲）

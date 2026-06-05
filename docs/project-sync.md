@@ -508,6 +508,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8787/api/debug/events" -Method POST `
 | [bds-setup.md](./bds-setup.md) | BDS 導入・配信前チェック |
 | [stream-runbook.md](./stream-runbook.md) | **初回配信 運用チェックリスト** |
 | [youtube-api-setup.md](./youtube-api-setup.md) | YouTube API |
+| [youtube-quota-application/](./youtube-quota-application/) | **GCP クォータ引き上げ申請用 PDF** |
 | [twitch-api-setup.md](./twitch-api-setup.md) | Twitch EventSub |
 | [research-java-oss.md](./research-java-oss.md) | Java OSS 調査 |
 | [safety-policy.md](./safety-policy.md) | 安全・クールダウン |

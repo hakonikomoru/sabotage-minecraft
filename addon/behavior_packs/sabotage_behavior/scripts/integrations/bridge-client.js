@@ -6,17 +6,21 @@ import {
 } from "@minecraft/server-net";
 import { CONFIG } from "../config.js";
 
-function buildHeaders() {
-  return [
+function buildHeaders(gameState) {
+  const headers = [
     new HttpHeader("Content-Type", "application/json"),
     new HttpHeader("X-Bridge-Api-Key", CONFIG.bridge.apiKey),
   ];
+  if (gameState) {
+    headers.push(new HttpHeader("X-Sab-Game-State", gameState));
+  }
+  return headers;
 }
 
-async function requestJson(path, method = HttpRequestMethod.Get, body) {
+async function requestJson(path, method = HttpRequestMethod.Get, body, gameState) {
   const request = new HttpRequest(`${CONFIG.bridge.baseUrl}${path}`);
   request.method = method;
-  request.headers = buildHeaders();
+  request.headers = buildHeaders(gameState);
   if (body !== undefined) {
     request.body = JSON.stringify(body);
   }
@@ -27,16 +31,16 @@ async function requestJson(path, method = HttpRequestMethod.Get, body) {
   return JSON.parse(response.body ?? "{}");
 }
 
-export async function fetchPendingEvents() {
-  const data = await requestJson("/api/minecraft/events");
+export async function fetchPendingEvents(gameState) {
+  const data = await requestJson("/api/minecraft/events", HttpRequestMethod.Get, undefined, gameState);
   return Array.isArray(data.events) ? data.events : [];
 }
 
-export async function ackEvents(eventIds) {
+export async function ackEvents(eventIds, gameState) {
   if (!eventIds.length) return { acked: 0 };
   return requestJson("/api/minecraft/events/ack", HttpRequestMethod.Post, {
     eventIds,
-  });
+  }, gameState);
 }
 
 export async function checkBridgeHealth() {

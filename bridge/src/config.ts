@@ -25,6 +25,17 @@ export const config = {
     refreshToken: process.env.YOUTUBE_REFRESH_TOKEN ?? "",
     channelId: process.env.YOUTUBE_CHANNEL_ID ?? "",
     liveVideoId: process.env.YOUTUBE_LIVE_VIDEO_ID ?? "",
+    /** Minimum ms between liveChatMessages.list calls (saves daily quota). */
+    minPollIntervalMs: Number(process.env.YOUTUBE_MIN_POLL_INTERVAL_MS ?? 15_000),
+    /** Initial backoff when daily quota is exceeded (ms). */
+    quotaBackoffMs: Number(process.env.YOUTUBE_QUOTA_BACKOFF_MS ?? 300_000),
+    /** Skip YouTube API calls until Minecraft reports running/paused. */
+    pollOnlyWhenGameRunning:
+      process.env.YOUTUBE_POLL_ONLY_WHEN_GAME_RUNNING !== "false",
+    /** How often to re-check game state while idle (ms). */
+    idleCheckIntervalMs: Number(
+      process.env.YOUTUBE_IDLE_CHECK_INTERVAL_MS ?? 30_000,
+    ),
   },
   twitch: {
     clientId: process.env.TWITCH_CLIENT_ID ?? "",

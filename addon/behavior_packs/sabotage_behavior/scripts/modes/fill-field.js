@@ -12,7 +12,6 @@ import {
   buildSkyArena,
   formatArenaSummary,
   getArenaStartLocation,
-  restoreArenaBlocks,
   teleportPlayerToArenaStart,
 } from "./arena.js";
 
@@ -169,17 +168,7 @@ export function destroyField(field) {
     return false;
   }
 
-  if (field.arena?.enabled) {
-    return restoreArenaBlocks(field);
-  }
-
-  const dimension = getDimension(field);
-  if (!dimension) return false;
-
-  for (const block of field.originalBlocks) {
-    setBlockSafe(dimension, { x: block.x, y: block.y, z: block.z }, block.typeId);
-  }
-  return true;
+  return restoreFieldVolume(field);
 }
 
 export function resetFieldToBase(field) {
@@ -228,6 +217,61 @@ function getDimension(field) {
   } catch {
     return null;
   }
+}
+
+function buildOriginalBlockMap(originalBlocks) {
+  const map = new Map();
+  for (const block of originalBlocks) {
+    map.set(`${block.x},${block.y},${block.z}`, block.typeId);
+  }
+  return map;
+}
+
+/** Bounds for reset: generated structure plus blocks placed during play (e.g. wool at y+1). */
+function getFieldCleanupBounds(field) {
+  if (field.arena?.enabled) {
+    const arena = field.arena;
+    return {
+      minX: arena.originX,
+      maxX: arena.originX + arena.size - 1,
+      minZ: arena.originZ,
+      maxZ: arena.originZ + arena.size - 1,
+      minY: arena.y,
+      maxY: arena.y + arena.wallHeight + 1,
+    };
+  }
+
+  return {
+    minX: field.originX,
+    maxX: field.originX + field.structureSize - 1,
+    minZ: field.originZ,
+    maxZ: field.originZ + field.structureSize - 1,
+    minY: field.y,
+    maxY: field.y + 1,
+  };
+}
+
+/** Restore snapshot blocks and clear anything else placed inside the cleanup volume. */
+function restoreFieldVolume(field) {
+  const dimension = getDimension(field);
+  if (!dimension || !field.originalBlocks?.length) {
+    return false;
+  }
+
+  const originalMap = buildOriginalBlockMap(field.originalBlocks);
+  const bounds = getFieldCleanupBounds(field);
+
+  for (let x = bounds.minX; x <= bounds.maxX; x++) {
+    for (let z = bounds.minZ; z <= bounds.maxZ; z++) {
+      for (let y = bounds.minY; y <= bounds.maxY; y++) {
+        const key = `${x},${y},${z}`;
+        const typeId = originalMap.get(key) ?? "minecraft:air";
+        setBlockSafe(dimension, { x, y, z }, typeId);
+      }
+    }
+  }
+
+  return true;
 }
 
 export function getDimensionFromField(field) {

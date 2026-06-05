@@ -39,6 +39,10 @@ export class PlatformManager {
     return this.youtubeClient?.isConnected() ?? false;
   }
 
+  isYoutubeQuotaLimited(): boolean {
+    return this.youtubeClient?.isQuotaLimited() ?? false;
+  }
+
   isTwitchConnected(): boolean {
     return this.twitchClient?.isConnected() ?? false;
   }

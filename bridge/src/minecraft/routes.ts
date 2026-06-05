@@ -8,6 +8,11 @@ import { logger } from "../logs/logger.js";
 import type { PlatformManager } from "../platforms/index.js";
 import { getAuthUrl, exchangeCodeForTokens } from "../platforms/youtube/auth.js";
 import { eventStore } from "./eventStore.js";
+import {
+  getSabGameStateLabel,
+  isSabGameActive,
+  updateSabGameState,
+} from "./gameState.js";
 import { MVP_COMMAND_NAMES } from "../rules/commandParser.js";
 
 function verifyBridgeApiKey(
@@ -33,6 +38,9 @@ export function registerRoutes(
         youtubeChat: config.safety.enableYoutubeChat,
         youtubeOAuthConfigured: isYoutubeOAuthClientConfigured(),
         youtubeLiveChatConnected: platforms?.isYoutubeConnected() ?? false,
+        youtubeQuotaLimited: platforms?.isYoutubeQuotaLimited() ?? false,
+        sabGameActive: isSabGameActive(),
+        sabGameState: getSabGameStateLabel(),
         twitch: config.platforms.enableTwitch,
       },
     };
@@ -42,6 +50,7 @@ export function registerRoutes(
     if (!verifyBridgeApiKey(request.headers["x-bridge-api-key"])) {
       return reply.code(401).send({ error: "unauthorized" });
     }
+    updateSabGameState(request.headers["x-sab-game-state"]);
     const events = eventStore.pollEvents();
     if (events.length > 0) {
       logger.info(`Minecraft polled events: ${events.length}`);

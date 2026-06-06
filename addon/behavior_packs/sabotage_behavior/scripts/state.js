@@ -77,7 +77,6 @@ export function resetState() {
   state.gameState = GAME_STATES.IDLE;
   state.mainPlayerName = null;
   CONFIG.game.mainPlayerName = null;
-  state.field = null;
   state.winResult = null;
   state.lastProgressNotifyAt = 0;
 }

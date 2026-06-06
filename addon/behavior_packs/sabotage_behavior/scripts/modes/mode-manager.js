@@ -1,5 +1,5 @@
 import { CONFIG, GAME_STATES, MODE_DISPLAY_NAMES } from "../config.js";
-import { world } from "@minecraft/server";
+import { world, system } from "@minecraft/server";
 import {
   setGameState,
   setMainPlayerName,
@@ -20,7 +20,7 @@ import {
   buildField,
   destroyField,
   teleportToFieldStart,
-  formatArenaSummary,
+  formatFieldArenaSummary,
 } from "./fill-field.js";
 import { getMainPlayer } from "../utils/players.js";
 import {
@@ -36,6 +36,7 @@ import {
 } from "../effects/support-effects.js";
 import { showTitleAll, broadcast } from "../effects/visual-effects.js";
 import { checkBridgeHealth } from "../integrations/bridge-client.js";
+import { giveMenuItem } from "../ui/menu-item.js";
 import {
   finishFillChallenge,
   checkFillChallengeProgress,
@@ -78,17 +79,14 @@ async function setupFillGame(player, modeId, onTimerFinish) {
   eventQueue.clear();
   setWinResult(null);
 
-  broadcast(`Starting ${modeId}...`);
-
+  const isBedrockBox = modeId === "bedrock_box";
   const cfg = getModeConfig(modeId);
-
-  if (CONFIG.arena.enabled) {
-    broadcast("Building sky arena...");
-  }
 
   const field = buildField(player, modeId);
   if (field?.error) {
-    if (CONFIG.arena.enabled) {
+    if (isBedrockBox) {
+      broadcast(field.error);
+    } else if (CONFIG.arena.enabled) {
       broadcast(`Arena generation failed: ${field.error}`);
     } else {
       broadcast(field.error);
@@ -96,17 +94,36 @@ async function setupFillGame(player, modeId, onTimerFinish) {
     return null;
   }
 
-  if (CONFIG.arena.enabled && field.arena?.enabled) {
-    const summary = formatArenaSummary(field);
+  if (field.reused) {
+    if (isBedrockBox) {
+      broadcast("BedrockBox arena reused.");
+    } else if (field.arena?.enabled) {
+      const summary = formatFieldArenaSummary(field);
+      broadcast(`Sky arena reused: ${summary}`);
+    } else {
+      broadcast("Field reused.");
+    }
+  } else if (isBedrockBox && field.arena?.enabled) {
+    const summary = formatFieldArenaSummary(field);
+    broadcast(`BedrockBox arena generated: ${summary}`);
+  } else if (CONFIG.arena.enabled && field.arena?.enabled) {
+    broadcast(`Starting ${modeId}...`);
+    const summary = formatFieldArenaSummary(field);
     broadcast(`Sky arena generated: ${summary}`);
+  } else {
+    broadcast(`Starting ${modeId}...`);
   }
 
   broadcast("Field generated.");
   removeWhiteWoolFromInventory(player);
   giveWhiteWool(player, cfg.initialWoolAmount);
-  teleportToFieldStart(player, field);
+  system.runTimeout(() => {
+    teleportToFieldStart(player, field);
+  }, 2);
 
-  if (CONFIG.arena.enabled && CONFIG.arena.teleportPlayerOnStart) {
+  if (isBedrockBox && CONFIG.bedrockBox.teleportPlayerOnStart) {
+    broadcast("Teleported player to BedrockBox.");
+  } else if (CONFIG.arena.enabled && CONFIG.arena.teleportPlayerOnStart) {
     broadcast("Teleported player to arena.");
   }
 
@@ -130,10 +147,20 @@ async function setupFillGame(player, modeId, onTimerFinish) {
     broadcast("Bridge: disconnected");
   }
 
-  broadcast("Game started.");
+  if (isBedrockBox) {
+    broadcast("BedrockBox Challenge started.");
+  } else {
+    broadcast("Game started.");
+  }
+  giveMenuItem(player, { announce: false });
 
   if (modeId === "fill_and_defend") {
     showTitleAll("Fill and Defend!", "Keep 90+ wool blocks for 10 minutes!");
+  } else if (isBedrockBox) {
+    showTitleAll(
+      "BedrockBox Challenge!",
+      "Fill 90 blocks in 10 minutes!",
+    );
   } else {
     showTitleAll("Fill Challenge!", "Reach 90% white wool in 10 minutes!");
   }
@@ -174,7 +201,9 @@ export function resetGame() {
   if (field) {
     const restored = destroyField(field);
     if (restored) {
-      if (field.arena?.enabled) {
+      if (field.modeId === "bedrock_box") {
+        broadcast("BedrockBox arena restored.");
+      } else if (field.arena?.enabled) {
         broadcast("Arena restored.");
       } else {
         broadcast("Field terrain restored.");
@@ -183,28 +212,30 @@ export function resetGame() {
       broadcast("Field data incomplete - reset state only.");
     }
 
-    if (
-      field.startPlayerOriginalLocation &&
-      CONFIG.arena.restorePlayerOnReset
-    ) {
-      const player = getMainPlayer();
-      if (player) {
-        const original = field.startPlayerOriginalLocation;
-        try {
-          const dimension = world.getDimension(original.dimensionId);
-          player.teleport(
-            { x: original.x, y: original.y, z: original.z },
-            { dimension },
-          );
-        } catch {
-          // ignore teleport failure on reset
+    if (field.startPlayerOriginalLocation) {
+      const restoreOnReset =
+        field.modeId === "bedrock_box"
+          ? CONFIG.bedrockBox.restorePlayerOnReset
+          : CONFIG.arena.restorePlayerOnReset;
+      if (restoreOnReset) {
+        const player = getMainPlayer();
+        if (player) {
+          const original = field.startPlayerOriginalLocation;
+          try {
+            const dimension = world.getDimension(original.dimensionId);
+            player.teleport(
+              { x: original.x, y: original.y, z: original.z },
+              { dimension },
+            );
+          } catch {
+            // ignore teleport failure on reset
+          }
         }
       }
     }
   }
   clearField();
   resetState();
-  setGameState(GAME_STATES.IDLE);
   broadcast("Game reset - use /scriptevent sab:command start to play again.");
 }
 

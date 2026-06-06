@@ -8,12 +8,17 @@ export const CONFIG = {
 
   game: {
     defaultMode: "fill_challenge",
-    availableModes: ["fill_challenge", "fill_and_defend"],
+    availableModes: ["fill_challenge", "fill_and_defend", "bedrock_box"],
     durationSeconds: 10 * 60,
     progressCheckIntervalTicks: 100,
     progressNotifyIntervalSeconds: 30,
     warningSeconds: [300, 180, 60, 30, 10],
     mainPlayerName: null,
+  },
+
+  world: {
+    lockDaytime: true,
+    timeOfDay: 6000,
   },
 
   fillChallenge: {
@@ -48,6 +53,32 @@ export const CONFIG = {
     fieldOffsetZ: 3,
   },
 
+  bedrockBoxMode: {
+    size: 10,
+    structureSize: 13,
+    targetBlock: "minecraft:white_wool",
+    acceptAnyFillBlock: true,
+    baseBlock: "minecraft:black_concrete",
+    borderBlock: "minecraft:yellow_concrete",
+    requiredRate: 0.9,
+    requiredCount: 90,
+    totalCells: 100,
+    initialWoolAmount: 128,
+    durationSeconds: 10 * 60,
+    winTiming: "on_reach",
+  },
+
+  bedrockBox: {
+    enabled: true,
+    yOffset: 24,
+    arenaSize: 13,
+    wallHeight: 9,
+    floorBlock: "minecraft:gray_concrete",
+    wallBlock: "minecraft:glass",
+    teleportPlayerOnStart: true,
+    restorePlayerOnReset: true,
+  },
+
   queue: {
     maxSize: 50,
     processIntervalTicks: 60,
@@ -76,7 +107,12 @@ export const CONFIG = {
     restorePlayerOnReset: true,
   },
 
-  /** Future: named item menu (not implemented in MVP) */
+  menuItem: {
+    typeId: "minecraft:clock",
+    nameTag: "SAB:menu",
+  },
+
+  /** Future: additional named item shortcuts */
   menuItems: {
     clock: "SAB:menu",
     start: "SAB:start",
@@ -92,6 +128,7 @@ export const CONFIG = {
 export const MODE_DISPLAY_NAMES = {
   fill_challenge: "Fill Challenge (10 min)",
   fill_and_defend: "Fill and Defend (10 min)",
+  bedrock_box: "BedrockBox Challenge",
 };
 
 export const EFFECT_LABELS = {
@@ -111,4 +148,4 @@ export const GAME_STATES = {
   EMERGENCY_STOPPED: "emergencyStopped",
 };
 
-/** @typedef {"fill_challenge" | "fill_and_defend"} SabotageMode */
+/** @typedef {"fill_challenge" | "fill_and_defend" | "bedrock_box"} SabotageMode */

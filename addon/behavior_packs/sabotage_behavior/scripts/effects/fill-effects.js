@@ -17,16 +17,24 @@ export function applyHole() {
     return 0;
   }
 
-  const woolPositions = getWoolPositions(field);
-  if (woolPositions.length === 0) {
-    broadcast("Hole effect skipped: no white wool blocks found.");
+  const fillPositions = getWoolPositions(field);
+  if (fillPositions.length === 0) {
+    broadcast(
+      field.acceptAnyFillBlock
+        ? "Hole effect skipped: no fill blocks found."
+        : "Hole effect skipped: no white wool blocks found.",
+    );
     return 0;
   }
 
-  const targets = pickRandomItems(woolPositions, 3);
+  const targets = pickRandomItems(fillPositions, 3);
   for (const pos of targets) {
     setBlockSafe(dimension, pos, field.baseBlock);
   }
-  broadcast(`Removed white wool blocks: ${targets.length}`);
+  broadcast(
+    field.acceptAnyFillBlock
+      ? `Removed fill blocks: ${targets.length}`
+      : `Removed white wool blocks: ${targets.length}`,
+  );
   return targets.length;
 }

@@ -187,6 +187,7 @@ export function buildSkyArena(player, modeId) {
     modeId,
     size: cfg.size,
     targetBlock: cfg.targetBlock,
+    acceptAnyFillBlock: cfg.acceptAnyFillBlock ?? false,
     baseBlock: cfg.baseBlock,
     borderBlock: cfg.borderBlock,
     originalBlocks,

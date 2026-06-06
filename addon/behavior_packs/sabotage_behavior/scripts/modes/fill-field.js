@@ -7,13 +7,18 @@ import {
   getBlockTypeId,
   setBlockSafe,
 } from "../utils/blocks.js";
-import { setField, getCurrentMode } from "../state.js";
+import { setField, getField, getCurrentMode } from "../state.js";
 import {
   buildSkyArena,
   formatArenaSummary,
   getArenaStartLocation,
   teleportPlayerToArenaStart,
 } from "./arena.js";
+import {
+  buildBedrockBoxArena,
+  formatBedrockBoxSummary,
+  teleportPlayerToBedrockBox,
+} from "./bedrock-box.js";
 
 /** Floor blocks that may be overwritten when generating the field (ground mode) */
 const REPLACEABLE_FLOOR = new Set([
@@ -141,6 +146,7 @@ function buildGroundField(player, modeId) {
     modeId,
     size: cfg.size,
     targetBlock: cfg.targetBlock,
+    acceptAnyFillBlock: cfg.acceptAnyFillBlock ?? false,
     baseBlock: cfg.baseBlock,
     borderBlock: cfg.borderBlock,
     originalBlocks,
@@ -149,15 +155,109 @@ function buildGroundField(player, modeId) {
   };
 }
 
+export function resetFieldToBase(field) {
+  if (!field) return;
+  const dimension = getDimension(field);
+  if (!dimension) return;
+  forEachInnerCell(field, (x, blockY, z) => {
+    setBlockSafe(dimension, { x, y: blockY, z }, field.baseBlock);
+  });
+}
+
+function isPlacedFillBlock(field, typeId) {
+  if (!typeId || typeId === "minecraft:air") return false;
+  if (field.acceptAnyFillBlock) {
+    return typeId !== field.baseBlock;
+  }
+  return typeId === field.targetBlock;
+}
+
+function clearPlacedFillBlocks(field) {
+  const dimension = getDimension(field);
+  if (!dimension) return;
+  forEachInnerCell(field, (x, blockY, z) => {
+    const fillY = blockY + 1;
+    const typeId = getBlockTypeId(dimension, { x, y: fillY, z });
+    if (isPlacedFillBlock(field, typeId)) {
+      setBlockSafe(dimension, { x, y: fillY, z }, "minecraft:air");
+    }
+  });
+}
+
+export function isFieldStructurePresent(field) {
+  const dimension = getDimension(field);
+  if (!dimension) return false;
+
+  const border = getBlockTypeId(dimension, {
+    x: field.originX,
+    y: field.y,
+    z: field.originZ,
+  });
+  if (border !== field.borderBlock) return false;
+
+  if (field.arena?.enabled) {
+    const wallBlock = getBlockTypeId(dimension, {
+      x: field.arena.originX,
+      y: field.arena.y + 1,
+      z: field.arena.originZ,
+    });
+    const expectedWall =
+      field.modeId === "bedrock_box"
+        ? CONFIG.bedrockBox.wallBlock
+        : CONFIG.arena.wallBlock;
+    return wallBlock === expectedWall;
+  }
+
+  const base = getBlockTypeId(dimension, {
+    x: field.originX + 1,
+    y: field.y,
+    z: field.originZ + 1,
+  });
+  return base === field.baseBlock;
+}
+
+export function canReuseField(field, modeId = getCurrentMode()) {
+  if (!field?.originalBlocks?.length) return false;
+  if (field.modeId !== modeId) return false;
+  return isFieldStructurePresent(field);
+}
+
+export function prepareFieldForReuse(field) {
+  resetFieldToBase(field);
+  clearPlacedFillBlocks(field);
+  return field;
+}
+
 export function buildField(player, modeId = getCurrentMode()) {
-  const field = CONFIG.arena.enabled
-    ? buildSkyArena(player, modeId)
-    : buildGroundField(player, modeId);
+  const existing = getField();
+  if (existing?.originalBlocks?.length && isFieldStructurePresent(existing)) {
+    if (existing.modeId === modeId) {
+      const cfg = getModeConfig(modeId);
+      existing.acceptAnyFillBlock = cfg.acceptAnyFillBlock ?? false;
+      prepareFieldForReuse(existing);
+      existing.reused = true;
+      setField(existing);
+      return existing;
+    }
+    return {
+      error: "Field already exists. Run reset before starting another mode.",
+    };
+  }
+
+  let field;
+  if (modeId === "bedrock_box") {
+    field = buildBedrockBoxArena(player, modeId);
+  } else if (CONFIG.arena.enabled) {
+    field = buildSkyArena(player, modeId);
+  } else {
+    field = buildGroundField(player, modeId);
+  }
 
   if (field?.error) {
     return field;
   }
 
+  field.reused = false;
   setField(field);
   return field;
 }
@@ -171,23 +271,14 @@ export function destroyField(field) {
   return restoreFieldVolume(field);
 }
 
-export function resetFieldToBase(field) {
-  if (!field) return;
-  const dimension = getDimension(field);
-  if (!dimension) return;
-  forEachInnerCell(field, (x, blockY, z) => {
-    setBlockSafe(dimension, { x, y: blockY, z }, field.baseBlock);
-  });
-}
-
 export function countWhiteWool(field) {
   if (!field) return 0;
   const dimension = getDimension(field);
   if (!dimension) return 0;
   let count = 0;
   forEachInnerCell(field, (x, blockY, z) => {
-    const woolY = blockY + 1;
-    if (getBlockTypeId(dimension, { x, y: woolY, z }) === field.targetBlock) {
+    const fillY = blockY + 1;
+    if (isPlacedFillBlock(field, getBlockTypeId(dimension, { x, y: fillY, z }))) {
       count += 1;
     }
   });
@@ -203,9 +294,9 @@ export function getWoolPositions(field) {
   const dimension = getDimension(field);
   if (!dimension) return positions;
   forEachInnerCell(field, (x, blockY, z) => {
-    const woolY = blockY + 1;
-    if (getBlockTypeId(dimension, { x, y: woolY, z }) === field.targetBlock) {
-      positions.push({ x, y: woolY, z });
+    const fillY = blockY + 1;
+    if (isPlacedFillBlock(field, getBlockTypeId(dimension, { x, y: fillY, z }))) {
+      positions.push({ x, y: fillY, z });
     }
   });
   return positions;
@@ -279,6 +370,11 @@ export function getDimensionFromField(field) {
 }
 
 export function teleportToFieldStart(player, field) {
+  if (field?.modeId === "bedrock_box" && CONFIG.bedrockBox.teleportPlayerOnStart) {
+    teleportPlayerToBedrockBox(player, field);
+    return;
+  }
+
   if (field?.arena?.enabled && CONFIG.arena.teleportPlayerOnStart) {
     teleportPlayerToArenaStart(player, field);
     return;
@@ -291,6 +387,13 @@ export function teleportToFieldStart(player, field) {
     y: field.y + 1,
     z: startZ,
   });
+}
+
+export function formatFieldArenaSummary(field) {
+  if (field?.modeId === "bedrock_box") {
+    return formatBedrockBoxSummary(field);
+  }
+  return formatArenaSummary(field);
 }
 
 export { formatArenaSummary, getArenaStartLocation };

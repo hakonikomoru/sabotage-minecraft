@@ -4,6 +4,7 @@ import {
   setGameState,
   setWinResult,
   getField,
+  getCurrentMode,
 } from "../state.js";
 import { getProgress, shouldWinOnProgress } from "./fill-progress.js";
 import { gameTimer } from "../timer.js";
@@ -16,8 +17,9 @@ export function checkFillChallengeProgress() {
   }
   const field = getField();
   if (!field) return null;
-  const progress = getProgress(field, "fill_challenge");
-  if (shouldWinOnProgress(progress, "fill_challenge")) {
+  const modeId = getCurrentMode();
+  const progress = getProgress(field, modeId);
+  if (shouldWinOnProgress(progress, modeId)) {
     finishFillChallenge(true);
   }
   return progress;

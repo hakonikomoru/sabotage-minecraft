@@ -19,6 +19,7 @@ import {
   getStatusLines,
   switchMode,
 } from "./modes/mode-manager.js";
+import { giveMenuItem } from "./ui/menu-item.js";
 
 const TEST_COMMANDS = new Set(["slow", "blind", "chicken", "hole", "block"]);
 
@@ -38,6 +39,12 @@ export async function handleSabCommand(player, args) {
       const variant = (args[1] ?? "").toLowerCase();
       if (variant === "defend") {
         const result = switchMode("fill_and_defend");
+        if (!result.ok) {
+          broadcast(result.message);
+          return;
+        }
+      } else if (variant === "box") {
+        const result = switchMode("bedrock_box");
         if (!result.ok) {
           broadcast(result.message);
           return;
@@ -120,6 +127,14 @@ export async function handleSabCommand(player, args) {
       }
       resetGame();
       break;
+    case "menu":
+    case "wand":
+      if (!isAdmin(player)) {
+        denyAdmin(player);
+        return;
+      }
+      giveMenuItem(player);
+      break;
     case "test": {
       if (!isAdmin(player)) {
         denyAdmin(player);
@@ -154,7 +169,7 @@ export async function handleSabCommand(player, args) {
     }
     default:
       broadcast(
-        "Usage: /scriptevent sab:command start|start defend|mode|stop|pause|resume|status|clear|reset|test",
+        "Usage: /scriptevent sab:command start|start defend|start box|mode|stop|pause|resume|status|clear|reset|menu|test",
       );
   }
 }

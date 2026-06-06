@@ -10,7 +10,9 @@ import {
   registerChatCommands,
   processNextQueuedEvent,
   handleSystemEvent,
+  handleSabCommand,
 } from "./command-router.js";
+import { registerMenuItem } from "./ui/menu-item.js";
 import { gameTimer } from "./timer.js";
 import { eventQueue } from "./event-queue.js";
 import {
@@ -28,7 +30,23 @@ import { logOk } from "./utils/logger.js";
 console.warn("[SAB] sabotage-minecraft addon loaded");
 
 const TICKS_PER_SECOND = 20;
+const DAYTIME_LOCK_INTERVAL_TICKS = 200;
 let pollInFlight = false;
+
+function lockWorldDaytime() {
+  if (CONFIG.world?.lockDaytime === false) return;
+
+  try {
+    if (world.gameRules) {
+      world.gameRules.doDaylightCycle = false;
+    }
+    world.setTimeOfDay(CONFIG.world?.timeOfDay ?? 6000);
+  } catch (error) {
+    console.warn(
+      `[SAB] Could not lock daytime: ${error?.message ?? error}`,
+    );
+  }
+}
 
 async function pollBridge() {
   if (pollInFlight) return;
@@ -81,7 +99,10 @@ function bootstrap() {
     );
   }
 
+  lockWorldDaytime();
+
   registerChatCommands();
+  registerMenuItem((player, args) => handleSabCommand(player, args));
   setGameState(GAME_STATES.READY);
 
   system.runInterval(() => {
@@ -113,6 +134,10 @@ function bootstrap() {
       }
     });
   }, CONFIG.game.progressCheckIntervalTicks);
+
+  system.runInterval(() => {
+    system.run(lockWorldDaytime);
+  }, DAYTIME_LOCK_INTERVAL_TICKS);
 
   broadcast("SAB addon ready - use /scriptevent sab:command start");
   broadcast("SAB command ready - use /scriptevent sab:command status");

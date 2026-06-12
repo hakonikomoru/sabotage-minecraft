@@ -306,6 +306,7 @@ export const EFFECT_REGISTRY: Record<string, EffectDefinition> = {
     tier: "medium",
     enabled: true,
     cooldownSeconds: 2,
+    skipUserCooldown: true,
   },
   box_bits: {
     command: "box_bits",

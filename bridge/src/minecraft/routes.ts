@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import {
   config,
   isDevelopment,
+  isTwitchIntegrationRequested,
   isYoutubeOAuthClientConfigured,
 } from "../config.js";
 import { logger } from "../logs/logger.js";
@@ -47,8 +48,13 @@ export function registerRoutes(
         youtubeQuotaLimited: platforms?.isYoutubeQuotaLimited() ?? false,
         sabGameActive: isSabGameActive(),
         sabGameState: getSabGameStateLabel(),
-        twitch: config.platforms.enableTwitch || config.safety.enableTwitchChat,
+        twitch: isTwitchIntegrationRequested(),
         twitchChat: config.safety.enableTwitchChat,
+        twitchChannelPoints: config.safety.enableChannelPointEvents,
+        twitchCheer: config.safety.enableCheerEvents,
+        twitchSubscribe: config.safety.enableSubscribeEvents,
+        twitchFollow: config.safety.enableFollowEvents,
+        twitchBedrockBox: config.safety.enableBedrockBoxTwitch,
         twitchConnected: platforms?.isTwitchConnected() ?? false,
       },
     };

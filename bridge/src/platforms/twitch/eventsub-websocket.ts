@@ -229,12 +229,18 @@ export class TwitchEventSubWebSocket {
     this.resetKeepalive(payload.session.keepalive_timeout_seconds ?? 10);
 
     const specs = this.getSubscriptionSpecs().filter((spec) => spec.enabled);
+    let subscribedCount = 0;
     for (const spec of specs) {
-      await this.createSubscription(this.sessionId, spec);
-      twitchLog.info(`Subscribed to ${spec.type}.`);
+      try {
+        await this.createSubscription(this.sessionId, spec);
+        subscribedCount += 1;
+        twitchLog.info(`Subscribed to ${spec.type}.`);
+      } catch (error) {
+        twitchLog.error(`Failed to subscribe to ${spec.type}`, error);
+      }
     }
 
-    this.subscribed = specs.length > 0;
+    this.subscribed = subscribedCount > 0;
     if (!this.subscribed) {
       twitchLog.warn("No EventSub subscriptions enabled — check ENABLE_* flags.");
     }
@@ -283,10 +289,83 @@ export class TwitchEventSubWebSocket {
     this.subscribed = false;
   }
 
-  private async createSubscription(
-    sessionId: string,
+  private matchesSubscriptionCondition(
+    condition: Record<string, string>,
+    spec: SubscriptionSpec,
+  ): boolean {
+    return Object.entries(spec.condition).every(
+      ([key, value]) => condition[key] === value,
+    );
+  }
+
+  private async deleteConflictingSubscriptions(
     spec: SubscriptionSpec,
   ): Promise<void> {
+    let cursor: string | undefined;
+    do {
+      const url = new URL(HELIX_EVENTSUB_URL);
+      url.searchParams.set("type", spec.type);
+      if (cursor) {
+        url.searchParams.set("after", cursor);
+      }
+
+      const listResponse = await this.tokenStore.withHelixAuth((accessToken) =>
+        fetch(url, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Client-Id": config.twitch.clientId,
+          },
+        }),
+      );
+
+      if (!listResponse.ok) {
+        const detail = await listResponse.text();
+        throw new Error(
+          `EventSub list failed for ${spec.type} (${listResponse.status}): ${detail}`,
+        );
+      }
+
+      const payload = (await listResponse.json()) as {
+        data?: Array<{ id: string; condition: Record<string, string> }>;
+        pagination?: { cursor?: string };
+      };
+
+      for (const subscription of payload.data ?? []) {
+        if (!this.matchesSubscriptionCondition(subscription.condition, spec)) {
+          continue;
+        }
+
+        const deleteResponse = await this.tokenStore.withHelixAuth(
+          (accessToken) =>
+            fetch(`${HELIX_EVENTSUB_URL}?id=${subscription.id}`, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Client-Id": config.twitch.clientId,
+              },
+            }),
+        );
+
+        if (!deleteResponse.ok && deleteResponse.status !== 404) {
+          const detail = await deleteResponse.text();
+          throw new Error(
+            `EventSub delete failed for ${spec.type} (${deleteResponse.status}): ${detail}`,
+          );
+        }
+
+        twitchLog.info(
+          `Removed stale EventSub subscription ${spec.type} (${subscription.id}).`,
+        );
+      }
+
+      cursor = payload.pagination?.cursor;
+    } while (cursor);
+  }
+
+  private async postSubscription(
+    sessionId: string,
+    spec: SubscriptionSpec,
+  ): Promise<Response> {
     const body = {
       type: spec.type,
       version: spec.version,
@@ -297,7 +376,7 @@ export class TwitchEventSubWebSocket {
       },
     };
 
-    const response = await this.tokenStore.withHelixAuth((accessToken) =>
+    return this.tokenStore.withHelixAuth((accessToken) =>
       fetch(HELIX_EVENTSUB_URL, {
         method: "POST",
         headers: {
@@ -308,10 +387,20 @@ export class TwitchEventSubWebSocket {
         body: JSON.stringify(body),
       }),
     );
+  }
+
+  private async createSubscription(
+    sessionId: string,
+    spec: SubscriptionSpec,
+  ): Promise<void> {
+    let response = await this.postSubscription(sessionId, spec);
 
     if (response.status === 409) {
-      twitchLog.info(`${spec.type} subscription already exists.`);
-      return;
+      twitchLog.warn(
+        `${spec.type} subscription conflict — replacing stale subscription.`,
+      );
+      await this.deleteConflictingSubscriptions(spec);
+      response = await this.postSubscription(sessionId, spec);
     }
 
     if (response.status === 429) {

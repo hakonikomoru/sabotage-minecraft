@@ -3,7 +3,6 @@ import { GAME_STATES } from "./config.js";
 import {
   getGameState,
   setGameState,
-  canAcceptYoutubeEvents,
   getCurrentMode,
 } from "./state.js";
 import { gameTimer } from "./timer.js";
@@ -11,6 +10,7 @@ import { eventQueue } from "./event-queue.js";
 import { isAdmin } from "./utils/players.js";
 import { broadcast } from "./effects/visual-effects.js";
 import { executeEffect } from "./effects/index.js";
+import { runTestEffect } from "./test-effect.js";
 import {
   startCurrentMode,
   stopGame,
@@ -21,8 +21,6 @@ import {
   switchMode,
 } from "./modes/mode-manager.js";
 import { giveMenuItem } from "./ui/menu-item.js";
-
-const TEST_COMMANDS = new Set(["slow", "blind", "chicken", "hole", "block"]);
 
 function denyAdmin(player) {
   broadcast("Permission denied: this command requires SAB admin.");
@@ -158,30 +156,10 @@ export async function handleSabCommand(player, args) {
         return;
       }
       const command = (args[1] ?? "blind").toLowerCase();
-      if (!TEST_COMMANDS.has(command)) {
-        broadcast(`Unknown test command: ${command}`);
-        return;
-      }
-      if (!canAcceptYoutubeEvents()) {
-        broadcast("Game not started - run start before testing.");
-        return;
-      }
-      const testEvent = {
-        id: `test_${Date.now()}`,
-        type: command === "block" ? "support" : "sabotage",
-        source: "normalChat",
-        command,
-        tier: "weak",
-        authorName: player.name,
-        message: `!${command}`,
-        createdAt: new Date().toISOString(),
-      };
-      if (!eventQueue.enqueue(testEvent)) {
-        broadcast(`Test event queue failed: ${command}`);
-        return;
-      }
-      broadcast(`Test event queued: ${command}`);
-      processNextQueuedEvent();
+      const bitsArg = Number(args[2]);
+      runTestEffect(player, command, {
+        bits: Number.isFinite(bitsArg) ? bitsArg : undefined,
+      });
       break;
     }
     default:

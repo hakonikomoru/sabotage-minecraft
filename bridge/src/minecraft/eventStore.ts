@@ -97,6 +97,11 @@ export class EventStore {
 
     const resolved = resolveCommandFromStreamEvent(event);
     if (!resolved) {
+      if (event.source === "channelPoint") {
+        logger.info(
+          `Ignored channel point (no mapping): reward=${event.rewardTitle ?? "?"} id=${event.rewardId ?? "?"}`,
+        );
+      }
       return;
     }
 

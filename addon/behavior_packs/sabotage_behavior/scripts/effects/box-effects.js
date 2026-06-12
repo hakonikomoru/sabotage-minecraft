@@ -1,4 +1,3 @@
-import { ItemStack } from "@minecraft/server";
 import { CONFIG, GAME_STATES } from "../config.js";
 import { getCurrentMode, getField, getGameState } from "../state.js";
 import { getDimensionFromField } from "../modes/fill-field.js";
@@ -8,6 +7,7 @@ import {
   getBedrockBoxLayerFromY,
 } from "../modes/bedrock-box-layers.js";
 import { getBlockTypeId, setBlockSafe } from "../utils/blocks.js";
+import { spawnFallingEmeraldBlock } from "../utils/falling-block.js";
 import { broadcast } from "./visual-effects.js";
 import { enqueueTnt } from "./tnt-queue.js";
 
@@ -32,21 +32,46 @@ function getFieldOrSkip(label) {
   return { field, dimension };
 }
 
-/** Remove the top N fill layers (air以外を air に). */
-export function removeTopLayers(field, dimension, layerCount) {
-  const maxLayer = getBedrockBoxLayerCount(field);
-  const firstLayer = Math.max(1, maxLayer - layerCount + 1);
-  let removed = 0;
+function isFilledCell(typeId) {
+  return Boolean(typeId && typeId !== "minecraft:air");
+}
 
+function findTopOccupiedLayer(field, dimension) {
+  let topLayer = 0;
   forEachBedrockBoxFillCell(field, (x, y, z) => {
     const layer = getBedrockBoxLayerFromY(field, y);
-    if (layer < firstLayer) return;
+    if (!isFilledCell(getBlockTypeId(dimension, { x, y, z }))) return;
+    if (layer > topLayer) topLayer = layer;
+  });
+  return topLayer;
+}
+
+function clearFillLayer(field, dimension, layer) {
+  let removed = 0;
+  forEachBedrockBoxFillCell(field, (x, y, z) => {
+    if (getBedrockBoxLayerFromY(field, y) !== layer) return;
     const typeId = getBlockTypeId(dimension, { x, y, z });
-    if (typeId && typeId !== "minecraft:air") {
-      setBlockSafe(dimension, { x, y, z }, "minecraft:air");
+    if (!isFilledCell(typeId)) return;
+    if (setBlockSafe(dimension, { x, y, z }, "minecraft:air")) {
       removed += 1;
     }
   });
+  return removed;
+}
+
+/**
+ * Remove the top N occupied fill layers (air以外を air に).
+ * Each step clears the current highest layer that has blocks.
+ */
+export function removeTopLayers(field, dimension, layerCount) {
+  const steps = Math.max(0, Math.floor(layerCount));
+  let removed = 0;
+
+  for (let step = 0; step < steps; step++) {
+    const topLayer = findTopOccupiedLayer(field, dimension);
+    if (topLayer < 1) break;
+    removed += clearFillLayer(field, dimension, topLayer);
+  }
 
   return removed;
 }
@@ -61,26 +86,17 @@ function pickRandomInnerColumn(field) {
   };
 }
 
-/** Drop one emerald block at a random position inside the fill volume. */
+/** Drop one emerald block from above; falls like sand and lands as a block. */
 export function dropEmeraldInsideBox(field, dimension) {
   const maxLayer = getBedrockBoxLayerCount(field);
-  const layer = 1 + Math.floor(Math.random() * maxLayer);
+  const dropHeight = CONFIG.bedrockBox?.emeraldDropHeight ?? 8;
   const column = pickRandomInnerColumn(field);
-  const x = column.x;
-  const z = column.z;
-  const y = field.y + layer;
+  const startY = field.y + maxLayer + dropHeight;
 
-  const typeId = getBlockTypeId(dimension, { x, y, z });
-  if (!typeId || typeId === "minecraft:air") {
-    setBlockSafe(dimension, { x, y, z }, "minecraft:emerald_block");
-    return;
-  }
-
-  const item = new ItemStack("minecraft:emerald_block", 1);
-  dimension.spawnItem(item, {
-    x: x + 0.5,
-    y: y + 0.5,
-    z: z + 0.5,
+  spawnFallingEmeraldBlock(dimension, field, {
+    x: column.x,
+    y: startY,
+    z: column.z,
   });
 }
 

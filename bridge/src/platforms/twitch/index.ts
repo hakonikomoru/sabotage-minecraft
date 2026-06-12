@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { config } from "../../config.js";
 import type { NormalizedStreamEvent } from "../../types.js";
-import { resolveUserByLogin } from "./auth.js";
+import { resolveUserByLogin, validateAccessToken } from "./auth.js";
 import { TwitchEventSubWebSocket } from "./eventsub-websocket.js";
 import { twitchLog } from "./logger.js";
 import { BEDROCK_BOX_COMMANDS } from "./bedrockBoxCommands.js";
@@ -28,7 +28,9 @@ export class TwitchChatPlatform {
         "BedrockBox Twitch mode ON — events map to box_* commands.",
       );
     }
+    this.logEventSubFlags();
     await this.resolveIds();
+    await this.warnMissingScopes();
     this.wsClient = new TwitchEventSubWebSocket(
       this.tokenStore,
       {
@@ -59,6 +61,35 @@ export class TwitchChatPlatform {
 
   isConnected(): boolean {
     return this.wsClient?.isConnected() ?? false;
+  }
+
+  private logEventSubFlags(): void {
+    twitchLog.info(
+      `EventSub flags: chat=${config.safety.enableTwitchChat} channelPoint=${config.safety.enableChannelPointEvents} cheer=${config.safety.enableCheerEvents} subscribe=${config.safety.enableSubscribeEvents} follow=${config.safety.enableFollowEvents}`,
+    );
+    if (!config.safety.enableChannelPointEvents) {
+      twitchLog.warn(
+        "Channel points OFF — set ENABLE_CHANNEL_POINT_EVENTS=true and restart Bridge.",
+      );
+    }
+  }
+
+  private async warnMissingScopes(): Promise<void> {
+    if (!config.safety.enableChannelPointEvents) return;
+
+    try {
+      const accessToken = await this.tokenStore.getValidAccessToken();
+      const validated = await validateAccessToken(accessToken);
+      if (!validated.scopes.includes("channel:read:redemptions")) {
+        twitchLog.warn(
+          "Missing OAuth scope channel:read:redemptions — visit /auth/twitch and re-authorize.",
+        );
+      }
+    } catch (error) {
+      twitchLog.warn(
+        `Could not validate Twitch token scopes: ${error instanceof Error ? error.message : error}`,
+      );
+    }
   }
 
   private async resolveIds(): Promise<void> {

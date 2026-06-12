@@ -57,7 +57,7 @@ export function isBedrockBoxFillVolume(field, x, y, z) {
 /** Iterate inner (x,z) columns across vertical fill layers 1..wallHeight. */
 export function forEachBedrockBoxFillCell(field, callback) {
   const maxLayer = getBedrockBoxLayerCount(field);
-  const size = field.size ?? 10;
+  const size = field.size ?? CONFIG.bedrockBox?.size ?? 11;
   for (let dx = 1; dx <= size; dx++) {
     for (let dz = 1; dz <= size; dz++) {
       const x = field.originX + dx;

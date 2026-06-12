@@ -2,6 +2,7 @@ import {
   config,
   getTwitchMissingConfig,
   isTwitchConfigured,
+  isTwitchIntegrationRequested,
   isYoutubeConfigured,
 } from "../config.js";
 import { logger } from "../logs/logger.js";
@@ -25,10 +26,12 @@ export class PlatformManager {
       logger.info("YouTube platform disabled (ENABLE_YOUTUBE=false)");
     }
 
-    if (config.platforms.enableTwitch || config.safety.enableTwitchChat) {
+    if (isTwitchIntegrationRequested()) {
       await this.startTwitch();
     } else {
-      logger.info("Twitch platform disabled (ENABLE_TWITCH_CHAT=false)");
+      logger.info(
+        "Twitch platform disabled (set ENABLE_TWITCH_CHAT or ENABLE_*_EVENTS=true)",
+      );
     }
   }
 
@@ -76,8 +79,10 @@ export class PlatformManager {
   }
 
   private async startTwitch(): Promise<void> {
-    if (!config.safety.enableTwitchChat && !config.platforms.enableTwitch) {
-      logger.info("Twitch chat disabled (ENABLE_TWITCH_CHAT=true to enable)");
+    if (!isTwitchIntegrationRequested()) {
+      logger.info(
+        "Twitch integration disabled (ENABLE_TWITCH_CHAT or ENABLE_*_EVENTS=true)",
+      );
       return;
     }
     const missing = getTwitchMissingConfig();

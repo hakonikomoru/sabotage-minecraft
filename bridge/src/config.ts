@@ -8,6 +8,16 @@ const bridgeRoot = path.resolve(
 );
 dotenv.config({ path: path.join(bridgeRoot, ".env") });
 
+const enableBedrockBoxTwitch =
+  process.env.ENABLE_BEDROCK_BOX_TWITCH !== "false";
+
+function readEnvFlag(name: string, defaultValue: boolean): boolean {
+  const value = process.env[name];
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return defaultValue;
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 8787),
   nodeEnv: process.env.NODE_ENV ?? "development",
@@ -67,14 +77,18 @@ export const config = {
     enableTwitchChat: process.env.ENABLE_TWITCH_CHAT === "true",
     enableTwitchChatDisplay:
       process.env.ENABLE_TWITCH_CHAT_DISPLAY !== "false",
-    enableChannelPointEvents:
-      process.env.ENABLE_CHANNEL_POINT_EVENTS === "true",
-    enableCheerEvents: process.env.ENABLE_CHEER_EVENTS === "true",
-    enableSubscribeEvents: process.env.ENABLE_SUBSCRIBE_EVENTS === "true",
-    enableFollowEvents: process.env.ENABLE_FOLLOW_EVENTS === "true",
+    enableChannelPointEvents: readEnvFlag(
+      "ENABLE_CHANNEL_POINT_EVENTS",
+      enableBedrockBoxTwitch,
+    ),
+    enableCheerEvents: readEnvFlag("ENABLE_CHEER_EVENTS", enableBedrockBoxTwitch),
+    enableSubscribeEvents: readEnvFlag(
+      "ENABLE_SUBSCRIBE_EVENTS",
+      enableBedrockBoxTwitch,
+    ),
+    enableFollowEvents: readEnvFlag("ENABLE_FOLLOW_EVENTS", enableBedrockBoxTwitch),
     /** When true, Twitch events map to box_* commands (BedrockBox). When false, legacy fill !commands. */
-    enableBedrockBoxTwitch:
-      process.env.ENABLE_BEDROCK_BOX_TWITCH !== "false",
+    enableBedrockBoxTwitch,
     enableMediumEffects: process.env.ENABLE_MEDIUM_EFFECTS === "true",
     enableStrongEffects: process.env.ENABLE_STRONG_EFFECTS === "true",
   },
@@ -116,4 +130,16 @@ export function getTwitchMissingConfig(): string[] {
 
 export function isTwitchConfigured(): boolean {
   return getTwitchMissingConfig().length === 0;
+}
+
+export function isTwitchIntegrationRequested(): boolean {
+  const safety = config.safety;
+  return (
+    config.platforms.enableTwitch ||
+    safety.enableTwitchChat ||
+    safety.enableChannelPointEvents ||
+    safety.enableCheerEvents ||
+    safety.enableSubscribeEvents ||
+    safety.enableFollowEvents
+  );
 }

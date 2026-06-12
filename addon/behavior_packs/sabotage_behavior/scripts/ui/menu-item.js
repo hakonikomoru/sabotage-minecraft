@@ -7,6 +7,7 @@ import {
   isBedrockBoxStructureEditEnabled,
   toggleBedrockBoxStructureEdit,
 } from "../state.js";
+import { runTestEffect } from "../test-effect.js";
 
 /** @type {((player: import("@minecraft/server").Player, args: string[]) => void | Promise<void>) | null} */
 let runSabCommand = null;
@@ -22,6 +23,17 @@ const MAIN_MENU_ACTIONS = [
   { kind: "game", modeId: "bedrock_box" },
   { kind: "command", label: "停止", args: ["stop"] },
   { kind: "command", label: "リセット", args: ["reset"] },
+];
+
+/** BedrockBox Twitch action test entries (menu buttons). */
+const BEDROCK_BOX_TEST_ACTIONS = [
+  { label: "初回コメント（上1段削除）", command: "box_comment_first" },
+  { label: "2回目コメント（エメラルド）", command: "box_comment_repeat" },
+  { label: "Follow（上3段削除）", command: "box_follow" },
+  { label: "Subscribe（上9段削除）", command: "box_subscribe" },
+  { label: "Channel Point（TNT×1）", command: "box_channel_point" },
+  { label: "Bits（TNT×5）", command: "box_bits", bits: 5 },
+  { label: "Gift Sub（TNT×100）", command: "box_gift_sub" },
 ];
 
 export function giveMenuItem(player, { announce = true } = {}) {
@@ -105,6 +117,39 @@ function getGameMenuEntry(modeId) {
   return GAME_MENU_ENTRIES.find((entry) => entry.modeId === modeId);
 }
 
+function runMenuTestEffect(player, action) {
+  const freshPlayer = resolveFreshPlayer(player);
+  if (!freshPlayer) return;
+
+  system.run(() => {
+    runTestEffect(freshPlayer, action.command, { bits: action.bits });
+  });
+}
+
+async function showBedrockBoxTestMenu(player) {
+  const form = new ActionFormData()
+    .title("アクションテスト")
+    .body("ゲーム開始中のみ有効です。Twitch イベントと同じ効果を試せます。");
+
+  for (const action of BEDROCK_BOX_TEST_ACTIONS) {
+    form.button(action.label);
+  }
+  form.button("戻る");
+
+  const result = await form.show(player);
+  if (result.canceled) return;
+
+  if (result.selection === BEDROCK_BOX_TEST_ACTIONS.length) {
+    await showBedrockBoxSubMenu(player);
+    return;
+  }
+
+  const action = BEDROCK_BOX_TEST_ACTIONS[result.selection];
+  if (!action) return;
+
+  runMenuTestEffect(player, action);
+}
+
 async function showBedrockBoxSubMenu(player) {
   const game = getGameMenuEntry("bedrock_box");
   const editOn = isBedrockBoxStructureEditEnabled();
@@ -118,7 +163,8 @@ async function showBedrockBoxSubMenu(player) {
     )
     .button("開始")
     .button(editOn ? "箱編集: OFF にする" : "箱編集: ON にする")
-    .button("箱を削除");
+    .button("箱を削除")
+    .button("アクションテスト");
 
   const result = await form.show(player);
   if (result.canceled) return;
@@ -140,6 +186,11 @@ async function showBedrockBoxSubMenu(player) {
 
   if (result.selection === 2) {
     runMenuCommand(player, ["deletebox"]);
+    return;
+  }
+
+  if (result.selection === 3) {
+    await showBedrockBoxTestMenu(player);
   }
 }
 

@@ -11,6 +11,21 @@ export type TwitchChatMessageEvent = {
   timestamp: string;
 };
 
+/** EventSub channel.chat.message v1 payload */
+export type TwitchChannelChatMessageEvent = {
+  broadcaster_user_id: string;
+  broadcaster_user_login: string;
+  broadcaster_user_name: string;
+  chatter_user_id: string;
+  chatter_user_login: string;
+  chatter_user_name: string;
+  message_id: string;
+  message: { text: string };
+  message_timestamp?: string;
+  color?: string;
+  message_type?: string;
+};
+
 export type TwitchChannelPointRedemption = {
   id: string;
   user_id: string;

@@ -4,7 +4,7 @@
 > 人間向けの概要は [README.md](../README.md)、配信向け説明は [worldview.md](./worldview.md)。
 
 <!-- sync:auto:meta:start -->
-最終更新の想定リポジトリ: `hakonikomoru/sabotage-minecraft`（`main`・`5fc8563`・2026-06-04・`npm run sync:project-docs` 自動反映）
+最終更新の想定リポジトリ: `hakonikomoru/sabotage-minecraft`（`main`・`1e480bc`・2026-06-12・`npm run sync:project-docs` 自動反映）
 <!-- sync:auto:meta:end -->
 
 ---
@@ -77,7 +77,7 @@ debug POST       ──┘         │
 |------|------|------|
 | `platforms/debug/` | 実装済 | `POST /api/debug/events` |
 | `platforms/youtube/` | 部分実装 | Live Chat ポーリング（`ENABLE_YOUTUBE_CHAT=true` 時） |
-| `platforms/twitch/` | スタブ | EventSub（MVP 後） |
+| `platforms/twitch/` | 部分実装 | EventSub WebSocket chat（`ENABLE_TWITCH_CHAT=true` 時） |
 
 ---
 
@@ -92,6 +92,8 @@ debug POST       ──┘         │
 | POST | `/api/debug/events` | 同上 | **開発のみ** 手動イベント投入 |
 | GET | `/auth/youtube` | なし | OAuth 開始 |
 | GET | `/auth/youtube/callback` | なし | OAuth コールバック |
+| GET | `/auth/twitch` | なし | Twitch OAuth 開始 |
+| GET | `/auth/twitch/callback` | なし | Twitch OAuth コールバック |
 
 ### debug イベント例
 
@@ -176,7 +178,7 @@ idle → running ⇄ paused → finished
 ### 未実装（MVP 後）
 
 - [ ] YouTube Super Chat / メンバー → 演出ルーレット
-- [ ] Twitch EventSub 実装（[twitch-api-setup.md](./twitch-api-setup.md)）
+- [x] Twitch EventSub chat（`!block` 等・Channel Points 等は未実装）
 - [ ] `vote_event` / `random_roulette` / `wolf_capture_race` モード
 - [ ] 名前付きアイテムメニュー（`SAB:*`）
 - [ ] OBS オーバーレイ / Web 管理画面
@@ -206,6 +208,9 @@ sabotage-minecraft/
 │       │   └── bridge-client.js
 │       ├── main.js
 │       ├── modes/
+│       │   ├── arena-builder.js
+│       │   ├── arena.js
+│       │   ├── bedrock-box.js
 │       │   ├── fill-and-defend.js
 │       │   ├── fill-challenge.js
 │       │   ├── fill-field.js
@@ -214,6 +219,8 @@ sabotage-minecraft/
 │       │   └── mode-manager.js
 │       ├── state.js
 │       ├── timer.js
+│       ├── ui/
+│       │   └── menu-item.js
 │       └── utils/
 │           ├── blocks.js
 │           ├── logger.js
@@ -231,6 +238,7 @@ sabotage-minecraft/
 │   │   │   └── logger.ts
 │   │   ├── minecraft/
 │   │   │   ├── eventStore.ts
+│   │   │   ├── gameState.ts
 │   │   │   └── routes.ts
 │   │   ├── platforms/
 │   │   │   ├── debug/
@@ -260,10 +268,20 @@ sabotage-minecraft/
 │   ├── project-sync.md
 │   ├── research-java-oss.md
 │   ├── safety-policy.md
+│   ├── stream-runbook.md
 │   ├── twitch-api-setup.md
 │   ├── twitch-setup.md
 │   ├── worldview.md
-│   └── youtube-api-setup.md
+│   ├── youtube-api-setup.md
+│   └── youtube-quota-application/
+│       ├── 01_privacy-policy-evidence.pdf
+│       ├── 02_terms-of-service.pdf
+│       ├── 03_homepage-and-access-evidence.pdf
+│       ├── 04_oauth-flow-and-feature-evidence.pdf
+│       ├── 05_architecture-diagram.pdf
+│       ├── 06_user-flow-diagram.pdf
+│       ├── 07_quota-rationale.pdf
+│       └── README.md
 ├── scripts/
 │   ├── project-sync-core.mjs
 │   ├── start-local-dev.ps1
@@ -287,6 +305,7 @@ sabotage-minecraft/
 | `logs/logger.ts` | file |
 | `minecraft/` | dir |
 | `minecraft/eventStore.ts` | file |
+| `minecraft/gameState.ts` | file |
 | `minecraft/routes.ts` | file |
 | `platforms/` | dir |
 | `platforms/debug/` | dir |
@@ -294,7 +313,13 @@ sabotage-minecraft/
 | `platforms/eventResolver.ts` | file |
 | `platforms/index.ts` | file |
 | `platforms/twitch/` | dir |
+| `platforms/twitch/auth.ts` | file |
 | `platforms/twitch/cheerTier.ts` | file |
+| `platforms/twitch/eventsub-websocket.ts` | file |
+| `platforms/twitch/index.ts` | file |
+| `platforms/twitch/logger.ts` | file |
+| `platforms/twitch/mapper.ts` | file |
+| `platforms/twitch/token-store.ts` | file |
 | `platforms/twitch/twitchClient.ts` | file |
 | `platforms/twitch/twitchNormalizer.ts` | file |
 | `platforms/twitch/twitchRewardMap.ts` | file |
@@ -400,7 +425,7 @@ Bridge のみ / BDS のみが必要なときは `bridge:dev` と `bds/bedrock_se
 5. YouTube OAuth + Live Chat                ← 完了（2026-06-05 動作確認）
 6. 初回配信運用チェックリスト                ← 現在ここ（stream-runbook.md）
 7. Super Chat 演出ルーレット
-8. Twitch EventSub
+8. Twitch EventSub chat                      ← 完了（2026-06-12 動作確認）
 9. 追加モード（vote / roulette / wolf_capture_race）
 ```
 

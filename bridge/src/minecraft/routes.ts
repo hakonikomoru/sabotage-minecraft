@@ -7,6 +7,12 @@ import {
 import { logger } from "../logs/logger.js";
 import type { PlatformManager } from "../platforms/index.js";
 import { getAuthUrl, exchangeCodeForTokens } from "../platforms/youtube/auth.js";
+import {
+  exchangeCodeForTokens as exchangeTwitchCodeForTokens,
+  getTwitchAuthUrl,
+  resolveUserByLogin,
+  validateAccessToken,
+} from "../platforms/twitch/auth.js";
 import { eventStore } from "./eventStore.js";
 import {
   getSabGameStateLabel,
@@ -41,7 +47,9 @@ export function registerRoutes(
         youtubeQuotaLimited: platforms?.isYoutubeQuotaLimited() ?? false,
         sabGameActive: isSabGameActive(),
         sabGameState: getSabGameStateLabel(),
-        twitch: config.platforms.enableTwitch,
+        twitch: config.platforms.enableTwitch || config.safety.enableTwitchChat,
+        twitchChat: config.safety.enableTwitchChat,
+        twitchConnected: platforms?.isTwitchConnected() ?? false,
       },
     };
   });
@@ -158,6 +166,77 @@ export function registerRoutes(
         };
       } catch (error) {
         logger.error("YouTube OAuth callback failed", error);
+        return reply.code(500).send({ error: "token exchange failed" });
+      }
+    },
+  );
+
+  app.get("/auth/twitch", async (_request, reply) => {
+    if (!config.twitch.clientId || !config.twitch.clientSecret) {
+      return reply.code(503).send({
+        error:
+          "Twitch OAuth client is not configured (TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET)",
+      });
+    }
+    return reply.redirect(getTwitchAuthUrl());
+  });
+
+  app.get<{ Querystring: { code?: string; error?: string } }>(
+    "/auth/twitch/callback",
+    async (request, reply) => {
+      if (!config.twitch.clientId || !config.twitch.clientSecret) {
+        return reply.code(503).send({
+          error:
+            "Twitch OAuth client is not configured (TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET)",
+        });
+      }
+
+      const oauthError = request.query.error;
+      if (oauthError) {
+        return reply.code(400).send({ error: oauthError });
+      }
+
+      const code = request.query.code;
+      if (!code) {
+        return reply.code(400).send({ error: "missing code" });
+      }
+
+      try {
+        const tokens = await exchangeTwitchCodeForTokens(code);
+        logger.ok("Twitch OAuth tokens received");
+        const validated = await validateAccessToken(tokens.access_token);
+        let broadcasterUserId = config.twitch.broadcasterUserId;
+        if (!broadcasterUserId && config.twitch.broadcasterLogin) {
+          const broadcaster = await resolveUserByLogin(
+            config.twitch.broadcasterLogin,
+            tokens.access_token,
+          );
+          broadcasterUserId = broadcaster?.id ?? "";
+        }
+
+        if (isDevelopment()) {
+          reply.type("text/plain; charset=utf-8");
+          return `Twitch OAuth completed.
+
+Copy the following values to bridge/.env:
+
+ENABLE_TWITCH_CHAT=true
+TWITCH_ACCESS_TOKEN=${tokens.access_token}
+TWITCH_REFRESH_TOKEN=${tokens.refresh_token ?? ""}
+TWITCH_USER_ID=${validated.userId}
+TWITCH_BROADCASTER_USER_ID=${broadcasterUserId || validated.userId}
+${config.twitch.broadcasterLogin ? `TWITCH_BROADCASTER_LOGIN=${config.twitch.broadcasterLogin}` : ""}
+`;
+        }
+
+        return {
+          ok: true,
+          userId: validated.userId,
+          broadcasterUserId: broadcasterUserId || validated.userId,
+          hasRefreshToken: Boolean(tokens.refresh_token),
+        };
+      } catch (error) {
+        logger.error("Twitch OAuth callback failed", error);
         return reply.code(500).send({ error: "token exchange failed" });
       }
     },

@@ -16,10 +16,13 @@
   "dependencies": {
     "dotenv": "^16.4.7",
     "fastify": "^5.2.1",
-    "googleapis": "^144.0.0"
+    "googleapis": "^144.0.0",
+    "sabotage-minecraft": "file:..",
+    "ws": "^8.18.1"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }

@@ -1,12 +1,14 @@
 import {
   config,
+  getTwitchMissingConfig,
   isTwitchConfigured,
   isYoutubeConfigured,
 } from "../config.js";
 import { logger } from "../logs/logger.js";
 import type { NormalizedStreamEvent } from "../types.js";
 import { YoutubeClient } from "./youtube/youtubeClient.js";
-import { TwitchEventSubClient } from "./twitch/twitchClient.js";
+import { TwitchEventSubClient } from "./twitch/index.js";
+import { twitchLog } from "./twitch/logger.js";
 
 export type PlatformEventHandler = (event: NormalizedStreamEvent) => void;
 
@@ -23,10 +25,10 @@ export class PlatformManager {
       logger.info("YouTube platform disabled (ENABLE_YOUTUBE=false)");
     }
 
-    if (config.platforms.enableTwitch) {
+    if (config.platforms.enableTwitch || config.safety.enableTwitchChat) {
       await this.startTwitch();
     } else {
-      logger.info("Twitch platform disabled (ENABLE_TWITCH=false)");
+      logger.info("Twitch platform disabled (ENABLE_TWITCH_CHAT=false)");
     }
   }
 
@@ -74,12 +76,27 @@ export class PlatformManager {
   }
 
   private async startTwitch(): Promise<void> {
-    if (!isTwitchConfigured()) {
-      logger.warn("Twitch enabled but OAuth is not configured");
+    if (!config.safety.enableTwitchChat && !config.platforms.enableTwitch) {
+      logger.info("Twitch chat disabled (ENABLE_TWITCH_CHAT=true to enable)");
       return;
     }
-    this.twitchClient = new TwitchEventSubClient(this.onEvent);
-    await this.twitchClient.start();
+    const missing = getTwitchMissingConfig();
+    if (missing.length > 0) {
+      twitchLog.warn(`Disabled: missing ${missing.join(", ")}`);
+      return;
+    }
+    if (!isTwitchConfigured()) {
+      twitchLog.warn("Disabled: Twitch OAuth is not configured");
+      return;
+    }
+    try {
+      this.twitchClient = new TwitchEventSubClient(this.onEvent);
+      await this.twitchClient.start();
+    } catch (error) {
+      twitchLog.error("Startup failed (Bridge continues without Twitch chat)", error);
+      this.twitchClient?.stop();
+      this.twitchClient = null;
+    }
   }
 }
 

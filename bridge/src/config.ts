@@ -40,10 +40,20 @@ export const config = {
   twitch: {
     clientId: process.env.TWITCH_CLIENT_ID ?? "",
     clientSecret: process.env.TWITCH_CLIENT_SECRET ?? "",
+    redirectUri:
+      process.env.TWITCH_REDIRECT_URI ??
+      "http://localhost:8787/auth/twitch/callback",
+    broadcasterLogin: process.env.TWITCH_BROADCASTER_LOGIN ?? "",
     broadcasterUserId: process.env.TWITCH_BROADCASTER_USER_ID ?? "",
-    moderatorUserId: process.env.TWITCH_MODERATOR_USER_ID ?? "",
+    userId:
+      process.env.TWITCH_USER_ID ??
+      process.env.TWITCH_MODERATOR_USER_ID ??
+      "",
     accessToken: process.env.TWITCH_ACCESS_TOKEN ?? "",
     refreshToken: process.env.TWITCH_REFRESH_TOKEN ?? "",
+    eventsubWebSocketUrl:
+      process.env.TWITCH_EVENTSUB_WEBSOCKET_URL ??
+      "wss://eventsub.wss.twitch.tv/ws",
     eventsubTransport:
       (process.env.TWITCH_EVENTSUB_TRANSPORT ?? "websocket") as
         | "websocket"
@@ -86,11 +96,17 @@ export function isYoutubeConfigured(): boolean {
   );
 }
 
+export function getTwitchMissingConfig(): string[] {
+  const missing: string[] = [];
+  if (!config.twitch.clientId) missing.push("TWITCH_CLIENT_ID");
+  if (!config.twitch.clientSecret) missing.push("TWITCH_CLIENT_SECRET");
+  if (!config.twitch.accessToken) missing.push("TWITCH_ACCESS_TOKEN");
+  if (!config.twitch.broadcasterUserId && !config.twitch.broadcasterLogin) {
+    missing.push("TWITCH_BROADCASTER_USER_ID or TWITCH_BROADCASTER_LOGIN");
+  }
+  return missing;
+}
+
 export function isTwitchConfigured(): boolean {
-  return Boolean(
-    config.twitch.clientId &&
-      config.twitch.clientSecret &&
-      config.twitch.broadcasterUserId &&
-      config.twitch.accessToken,
-  );
+  return getTwitchMissingConfig().length === 0;
 }

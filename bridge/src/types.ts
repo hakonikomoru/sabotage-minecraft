@@ -1,4 +1,9 @@
-export type SabotageEventType = "sabotage" | "support" | "effect" | "system";
+export type SabotageEventType =
+  | "sabotage"
+  | "support"
+  | "effect"
+  | "system"
+  | "chat";
 
 export type StreamPlatform = "youtube" | "twitch" | "debug";
 

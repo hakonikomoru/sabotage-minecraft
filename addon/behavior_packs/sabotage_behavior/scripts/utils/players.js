@@ -1,4 +1,4 @@
-import { world } from "@minecraft/server";
+import { world, GameMode } from "@minecraft/server";
 import { CONFIG } from "../config.js";
 import { getMainPlayerName } from "../state.js";
 
@@ -15,6 +15,15 @@ export function getMainPlayer() {
 export function getAllGamePlayers() {
   const main = getMainPlayer();
   return main ? [main] : world.getAllPlayers();
+}
+
+export function isCreativePlayer(player) {
+  if (!player) return false;
+  try {
+    return player.getGameMode() === GameMode.Creative;
+  } catch {
+    return false;
+  }
 }
 
 export function isAdmin(player) {

@@ -22,6 +22,7 @@ type PendingEvent = SabotageEvent & { acked: boolean };
 
 export class EventStore {
   private readonly pending: PendingEvent[] = [];
+  private readonly chatPending: PendingEvent[] = [];
   private readonly cooldown = new CooldownManager();
   private readonly seenMessageIds = new Set<string>();
   private mode: BridgeMode = "running";
@@ -92,6 +93,8 @@ export class EventStore {
 
     this.rememberMessageId(dedupeKey);
 
+    this.enqueueChatDisplay(event);
+
     const resolved = resolveCommandFromStreamEvent(event);
     if (!resolved) {
       return;
@@ -122,7 +125,10 @@ export class EventStore {
     }
 
     const authorId = event.authorId ?? event.authorName;
-    if (!this.cooldown.checkUser(authorId)) {
+    if (
+      !definition.skipUserCooldown &&
+      !this.cooldown.checkUser(authorId)
+    ) {
       this.ignoredEvents += 1;
       logger.info(
         `Ignored command due to cooldown: !${resolved.command} from ${event.authorName}`,
@@ -148,15 +154,20 @@ export class EventStore {
 
   pollEvents(): SabotageEvent[] {
     this.lastMinecraftPollAt = Date.now();
-    return this.pending
+    const chats = this.chatPending
+      .filter((event) => !event.acked)
+      .slice(0, config.queue.maxChatEventsPerPoll)
+      .map(({ acked: _acked, ...event }) => event);
+    const effects = this.pending
       .filter((event) => !event.acked)
       .slice(0, config.queue.maxEventsPerPoll)
       .map(({ acked: _acked, ...event }) => event);
+    return [...chats, ...effects];
   }
 
   ackEvents(eventIds: string[]): number {
     let count = 0;
-    for (const pending of this.pending) {
+    for (const pending of [...this.chatPending, ...this.pending]) {
       if (eventIds.includes(pending.id) && !pending.acked) {
         pending.acked = true;
         this.processedEvents += 1;
@@ -164,6 +175,7 @@ export class EventStore {
       }
     }
     this.compactPending();
+    this.compactChatPending();
     return count;
   }
 
@@ -179,7 +191,9 @@ export class EventStore {
         this.lastMinecraftPollAt !== null &&
         Date.now() - this.lastMinecraftPollAt < 30_000,
       liveChatId,
-      pendingEvents: this.pending.filter((event) => !event.acked).length,
+      pendingEvents:
+        this.pending.filter((event) => !event.acked).length +
+        this.chatPending.filter((event) => !event.acked).length,
       processedEvents: this.processedEvents,
       ignoredEvents: this.ignoredEvents,
       mode: this.mode,
@@ -192,10 +206,49 @@ export class EventStore {
   }
 
   clearQueue(): number {
-    const before = this.pending.length;
+    const before = this.pending.length + this.chatPending.length;
     this.pending.length = 0;
+    this.chatPending.length = 0;
     logger.warn(`Queue cleared (${before} events removed)`);
     return before;
+  }
+
+  private enqueueChatDisplay(stream: NormalizedStreamEvent): void {
+    if (!config.safety.enableTwitchChatDisplay) {
+      return;
+    }
+    if (stream.platform !== "twitch" || stream.source !== "twitchChat") {
+      return;
+    }
+
+    const text = (stream.message ?? "").trim();
+    if (!text) {
+      return;
+    }
+
+    const event: SabotageEvent = {
+      id: `chat_${stream.platform}_${stream.id}`,
+      platform: stream.platform,
+      type: "chat",
+      source: stream.source,
+      command: "chat",
+      tier: "special",
+      authorName: stream.authorName,
+      authorId: stream.authorId,
+      message: text,
+      createdAt: stream.createdAt,
+    };
+
+    if (
+      this.chatPending.filter((item) => !item.acked).length >=
+      config.queue.maxChatQueueSize
+    ) {
+      this.ignoredEvents += 1;
+      return;
+    }
+
+    this.chatPending.push({ ...event, acked: false });
+    logger.info(`Chat display queued: ${stream.authorName}: ${text}`);
   }
 
   private buildSabotageEvent(
@@ -251,6 +304,15 @@ export class EventStore {
     const unacked = this.pending.filter((event) => !event.acked);
     this.pending.length = 0;
     this.pending.push(...unacked);
+  }
+
+  private compactChatPending(): void {
+    if (this.chatPending.length <= config.queue.maxChatQueueSize * 2) {
+      return;
+    }
+    const unacked = this.chatPending.filter((event) => !event.acked);
+    this.chatPending.length = 0;
+    this.chatPending.push(...unacked);
   }
 }
 

@@ -1,8 +1,13 @@
+import { config } from "../config.js";
 import { parseChatCommand } from "../rules/commandParser.js";
 import type {
   NormalizedStreamEvent,
   ResolvedStreamCommand,
 } from "../types.js";
+import {
+  resolveBedrockBoxCommand,
+  resolveBedrockBoxPresetCommand,
+} from "./twitch/bedrockBoxCommands.js";
 import { resolveRewardMapping } from "./twitch/twitchRewardMap.js";
 
 const TWITCH_SPECIAL_COMMANDS: Record<
@@ -37,6 +42,15 @@ export function resolveCommandFromStreamEvent(
   if (event.command) {
     const special = TWITCH_SPECIAL_COMMANDS[event.command];
     if (special) return special;
+    if (config.safety.enableBedrockBoxTwitch && event.platform === "twitch") {
+      const preset = resolveBedrockBoxPresetCommand(event.command);
+      if (preset) return preset;
+    }
+  }
+
+  if (config.safety.enableBedrockBoxTwitch && event.platform === "twitch") {
+    const bedrock = resolveBedrockBoxCommand(event.source);
+    if (bedrock) return bedrock;
   }
 
   switch (event.source) {

@@ -9,22 +9,44 @@ if (-not (Test-Path $bdsExe)) {
   exit 1
 }
 
-$serverProps = Join-Path $bdsRoot "server.properties"
-if (Test-Path $serverProps) {
-  $lines = Get-Content $serverProps
+function Set-ServerPropertyLine {
+  param(
+    [string[]]$Lines,
+    [string]$Key,
+    [string]$Value
+  )
+
   $found = $false
-  $updated = foreach ($line in $lines) {
-    if ($line -match '^difficulty=') {
+  $updated = foreach ($line in $Lines) {
+    if ($line -match "^$([regex]::Escape($Key))=") {
       $found = $true
-      'difficulty=peaceful'
+      "$Key=$Value"
     } else {
       $line
     }
   }
   if (-not $found) {
-    $updated += 'difficulty=peaceful'
+    $updated += "$Key=$Value"
   }
-  Set-Content -Path $serverProps -Value $updated -Encoding utf8
+  return ,$updated
+}
+
+$serverProps = Join-Path $bdsRoot "server.properties"
+if (Test-Path $serverProps) {
+  $lines = Get-Content $serverProps
+  $lines = Set-ServerPropertyLine $lines "difficulty" "peaceful"
+  $lines = Set-ServerPropertyLine $lines "allow-cheats" "true"
+
+  # BedrockBox: allow placing/breaking blocks far from the player (matches config.js blockInteractionRange: 20).
+  $blockReach = 20
+  $defaultReach = 5
+  $rangeScalar = [math]::Round([math]::Sqrt($blockReach / $defaultReach), 2)
+  $lines = Set-ServerPropertyLine $lines "server-authoritative-block-breaking" "true"
+  # BDS builds differ: pick-range-scalar (older) vs range-scalar (newer docs).
+  $lines = Set-ServerPropertyLine $lines "server-authoritative-block-breaking-pick-range-scalar" "$rangeScalar"
+  $lines = Set-ServerPropertyLine $lines "server-authoritative-block-breaking-range-scalar" "$rangeScalar"
+
+  Set-Content -Path $serverProps -Value $lines -Encoding utf8
 }
 
 Write-Host "Starting Bridge in a new window (port 8787)..."

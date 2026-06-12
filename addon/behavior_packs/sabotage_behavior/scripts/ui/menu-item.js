@@ -1,24 +1,27 @@
 import { world, ItemStack, system } from "@minecraft/server";
 import { ActionFormData } from "@minecraft/server-ui";
-import { CONFIG } from "../config.js";
+import { CONFIG, MODE_DISPLAY_NAMES } from "../config.js";
 import { isAdmin } from "../utils/players.js";
 import { broadcast } from "../effects/visual-effects.js";
+import {
+  isBedrockBoxStructureEditEnabled,
+  toggleBedrockBoxStructureEdit,
+} from "../state.js";
 
 /** @type {((player: import("@minecraft/server").Player, args: string[]) => void | Promise<void>) | null} */
 let runSabCommand = null;
 
-const MENU_ACTIONS = [
-  { label: "状態確認", args: ["status"] },
-  { label: "開始: BedrockBox", args: ["start", "box"] },
-  { label: "開始: 埋めチャレンジ", args: ["start"] },
-  { label: "開始: 埋めて守れ", args: ["start", "defend"] },
-  { label: "停止", args: ["stop"] },
-  { label: "リセット", args: ["reset"] },
-  { label: "テスト: ウール追加", args: ["test", "block"] },
-  { label: "テスト: 穴", args: ["test", "hole"] },
-  { label: "テスト: スロー", args: ["test", "slow"] },
-  { label: "テスト: 盲目", args: ["test", "blind"] },
-  { label: "テスト: ニワトリ", args: ["test", "chicken"] },
+const GAME_MENU_ENTRIES = [
+  {
+    modeId: "bedrock_box",
+    label: MODE_DISPLAY_NAMES.bedrock_box,
+  },
+];
+
+const MAIN_MENU_ACTIONS = [
+  { kind: "game", modeId: "bedrock_box" },
+  { kind: "command", label: "停止", args: ["stop"] },
+  { kind: "command", label: "リセット", args: ["reset"] },
 ];
 
 export function giveMenuItem(player, { announce = true } = {}) {
@@ -75,35 +78,99 @@ export function registerMenuItem(runCommand) {
   console.warn("[SAB] menu item handler registered.");
 }
 
+function resolveFreshPlayer(player) {
+  const freshPlayer = world.getPlayers({ name: player.name })[0];
+  if (!freshPlayer) {
+    console.warn(`[SAB] SAB menu action skipped: player ${player.name} not found.`);
+    return null;
+  }
+  return freshPlayer;
+}
+
+function runMenuCommand(player, args) {
+  if (!runSabCommand) return;
+  const freshPlayer = resolveFreshPlayer(player);
+  if (!freshPlayer) return;
+
+  console.warn(`[SAB] SAB menu action: ${args.join(" ")}`);
+
+  system.run(() => {
+    Promise.resolve(runSabCommand(freshPlayer, args)).catch((error) => {
+      console.warn(`[SAB] SAB menu action failed: ${error?.message ?? error}`);
+    });
+  });
+}
+
+function getGameMenuEntry(modeId) {
+  return GAME_MENU_ENTRIES.find((entry) => entry.modeId === modeId);
+}
+
+async function showBedrockBoxSubMenu(player) {
+  const game = getGameMenuEntry("bedrock_box");
+  const editOn = isBedrockBoxStructureEditEnabled();
+
+  const form = new ActionFormData()
+    .title(game?.label ?? "BedrockBox")
+    .body(
+      editOn
+        ? "箱編集: ON — 床・壁・枠を壊して編集できます。"
+        : "箱編集: OFF — 箱は保護されています。",
+    )
+    .button("開始")
+    .button(editOn ? "箱編集: OFF にする" : "箱編集: ON にする")
+    .button("箱を削除");
+
+  const result = await form.show(player);
+  if (result.canceled) return;
+
+  if (result.selection === 0) {
+    runMenuCommand(player, ["start", "box"]);
+    return;
+  }
+
+  if (result.selection === 1) {
+    const enabled = toggleBedrockBoxStructureEdit();
+    broadcast(
+      enabled
+        ? "BedrockBox structure edit: ON (walls and floor can be broken)."
+        : "BedrockBox structure edit: OFF (structure protected).",
+    );
+    return;
+  }
+
+  if (result.selection === 2) {
+    runMenuCommand(player, ["deletebox"]);
+  }
+}
+
 async function showSabMenu(player) {
   if (!runSabCommand) return;
 
   const form = new ActionFormData()
     .title("SAB 操作メニュー")
-    .body("実行する操作を選んでください。");
+    .body("ゲームを選ぶか、停止・リセットを実行してください。");
 
-  for (const action of MENU_ACTIONS) {
-    form.button(action.label);
+  for (const action of MAIN_MENU_ACTIONS) {
+    if (action.kind === "game") {
+      const game = getGameMenuEntry(action.modeId);
+      form.button(game?.label ?? action.modeId);
+    } else {
+      form.button(action.label);
+    }
   }
 
   const result = await form.show(player);
   if (result.canceled) return;
 
-  const action = MENU_ACTIONS[result.selection];
+  const action = MAIN_MENU_ACTIONS[result.selection];
   if (!action) return;
 
-  const playerName = player.name;
-  const freshPlayer = world.getPlayers({ name: playerName })[0];
-  if (!freshPlayer) {
-    console.warn(`[SAB] SAB menu action skipped: player ${playerName} not found.`);
+  if (action.kind === "game") {
+    if (action.modeId === "bedrock_box") {
+      await showBedrockBoxSubMenu(player);
+    }
     return;
   }
 
-  console.warn(`[SAB] SAB menu action: ${action.args.join(" ")}`);
-
-  system.run(() => {
-    Promise.resolve(runSabCommand(freshPlayer, action.args)).catch((error) => {
-      console.warn(`[SAB] SAB menu action failed: ${error?.message ?? error}`);
-    });
-  });
+  runMenuCommand(player, action.args);
 }

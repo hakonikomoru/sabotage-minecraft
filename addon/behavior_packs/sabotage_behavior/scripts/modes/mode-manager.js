@@ -5,6 +5,7 @@ import {
   setMainPlayerName,
   setWinResult,
   getField,
+  setField,
   clearField,
   setLastProgressNotifyAt,
   getLastProgressNotifyAt,
@@ -14,6 +15,7 @@ import {
   setCurrentMode,
   canChangeMode,
   resetState,
+  setBedrockBoxStructureEditEnabled,
 } from "../state.js";
 import { getModeConfig } from "./mode-config.js";
 import {
@@ -21,8 +23,16 @@ import {
   destroyField,
   teleportToFieldStart,
   formatFieldArenaSummary,
+  isFieldStructurePresent,
+  isBedrockBoxPresent,
+  prepareFieldForReuse,
 } from "./fill-field.js";
-import { getMainPlayer } from "../utils/players.js";
+import {
+  clearPersistedBedrockBoxField,
+  loadPersistedBedrockBoxField,
+  persistBedrockBoxField,
+} from "./field-persistence.js";
+import { getMainPlayer, isCreativePlayer } from "../utils/players.js";
 import {
   getProgress,
   getGameSnapshot,
@@ -38,10 +48,20 @@ import { showTitleAll, broadcast } from "../effects/visual-effects.js";
 import { checkBridgeHealth } from "../integrations/bridge-client.js";
 import { giveMenuItem } from "../ui/menu-item.js";
 import {
+  formatStatusGaugeActionBar,
+  updateStatusGauge,
+} from "../ui/status-gauge.js";
+import {
   finishFillChallenge,
   checkFillChallengeProgress,
 } from "./fill-challenge.js";
 import { finishFillAndDefendOnTimeUp } from "./fill-and-defend.js";
+import {
+  checkBedrockBoxProgress,
+  clearBedrockBoxHoldDisplay,
+} from "./bedrock-box-win.js";
+import { resetBedrockBoxHold } from "../state.js";
+import { clearTntQueue } from "../effects/tnt-queue.js";
 
 export { getModeConfig } from "./mode-config.js";
 export { MODE_DISPLAY_NAMES } from "../config.js";
@@ -82,6 +102,10 @@ async function setupFillGame(player, modeId, onTimerFinish) {
   const isBedrockBox = modeId === "bedrock_box";
   const cfg = getModeConfig(modeId);
 
+  if (isBedrockBox) {
+    setBedrockBoxStructureEditEnabled(false);
+  }
+
   const field = buildField(player, modeId);
   if (field?.error) {
     if (isBedrockBox) {
@@ -114,9 +138,13 @@ async function setupFillGame(player, modeId, onTimerFinish) {
     broadcast(`Starting ${modeId}...`);
   }
 
-  broadcast("Field generated.");
-  removeWhiteWoolFromInventory(player);
-  giveWhiteWool(player, cfg.initialWoolAmount);
+  if (!field.reused) {
+    broadcast("Field generated.");
+  }
+  if (!isCreativePlayer(player)) {
+    removeWhiteWoolFromInventory(player);
+    giveWhiteWool(player, cfg.initialWoolAmount);
+  }
   system.runTimeout(() => {
     teleportToFieldStart(player, field);
   }, 2);
@@ -127,11 +155,19 @@ async function setupFillGame(player, modeId, onTimerFinish) {
     broadcast("Teleported player to arena.");
   }
 
-  gameTimer.start(onTimerFinish, cfg.durationSeconds);
+  const unlimitedTime = cfg.unlimitedTime === true;
+  if (!unlimitedTime) {
+    gameTimer.start(onTimerFinish, cfg.durationSeconds);
+    broadcast(`Timer started: ${formatDuration(cfg.durationSeconds)}`);
+  } else {
+    gameTimer.stop();
+    broadcast("No time limit.");
+  }
   setGameState(GAME_STATES.RUNNING);
   setLastProgressNotifyAt(Date.now());
-
-  broadcast(`Timer started: ${formatDuration(cfg.durationSeconds)}`);
+  if (isBedrockBox) {
+    system.run(() => updateStatusGauge());
+  }
 
   let bridgeOk = false;
   try {
@@ -148,7 +184,7 @@ async function setupFillGame(player, modeId, onTimerFinish) {
   }
 
   if (isBedrockBox) {
-    broadcast("BedrockBox Challenge started.");
+    broadcast("BedrockBox started.");
   } else {
     broadcast("Game started.");
   }
@@ -157,10 +193,7 @@ async function setupFillGame(player, modeId, onTimerFinish) {
   if (modeId === "fill_and_defend") {
     showTitleAll("Fill and Defend!", "Keep 90+ wool blocks for 10 minutes!");
   } else if (isBedrockBox) {
-    showTitleAll(
-      "BedrockBox Challenge!",
-      "Fill 90 blocks in 10 minutes!",
-    );
+    showTitleAll("BedrockBox!", "Fill the box, then hold 10 sec!");
   } else {
     showTitleAll("Fill Challenge!", "Reach 90% white wool in 10 minutes!");
   }
@@ -185,25 +218,71 @@ export function checkProgress() {
     const field = getField();
     return field ? getProgress(field, modeId) : null;
   }
+  if (modeId === "bedrock_box") {
+    return checkBedrockBoxProgress();
+  }
   return checkFillChallengeProgress();
 }
 
 export function stopGame() {
   gameTimer.stop();
   eventQueue.clear();
+  clearTntQueue();
+  resetBedrockBoxHold();
+  clearBedrockBoxHoldDisplay();
   setGameState(GAME_STATES.FINISHED);
+  updateStatusGauge();
+}
+
+function maybeRestorePlayerOnReset(field) {
+  if (!field?.startPlayerOriginalLocation) return;
+
+  const restoreOnReset =
+    field.modeId === "bedrock_box"
+      ? CONFIG.bedrockBox.restorePlayerOnReset
+      : CONFIG.arena.restorePlayerOnReset;
+  if (!restoreOnReset) return;
+
+  const player = getMainPlayer();
+  if (!player) return;
+
+  const original = field.startPlayerOriginalLocation;
+  try {
+    const dimension = world.getDimension(original.dimensionId);
+    player.teleport(
+      { x: original.x, y: original.y, z: original.z },
+      { dimension },
+    );
+  } catch {
+    // ignore teleport failure on reset
+  }
 }
 
 export function resetGame() {
   gameTimer.stop();
   eventQueue.clear();
-  const field = getField();
+  clearTntQueue();
+  resetBedrockBoxHold();
+  clearBedrockBoxHoldDisplay();
+
+  const field = getField() ?? loadPersistedBedrockBoxField();
+  if (field?.modeId === "bedrock_box" && isBedrockBoxPresent(field)) {
+    prepareFieldForReuse(field);
+    setField(field);
+    persistBedrockBoxField(field);
+    maybeRestorePlayerOnReset(field);
+    resetState();
+    setGameState(GAME_STATES.READY);
+    broadcast(
+      "Game reset - BedrockBox kept. Use start box or the menu to play again.",
+    );
+    return;
+  }
+
   if (field) {
     const restored = destroyField(field);
     if (restored) {
-      if (field.modeId === "bedrock_box") {
-        broadcast("BedrockBox arena restored.");
-      } else if (field.arena?.enabled) {
+      if (field.arena?.enabled) {
         broadcast("Arena restored.");
       } else {
         broadcast("Field terrain restored.");
@@ -211,37 +290,62 @@ export function resetGame() {
     } else {
       broadcast("Field data incomplete - reset state only.");
     }
-
-    if (field.startPlayerOriginalLocation) {
-      const restoreOnReset =
-        field.modeId === "bedrock_box"
-          ? CONFIG.bedrockBox.restorePlayerOnReset
-          : CONFIG.arena.restorePlayerOnReset;
-      if (restoreOnReset) {
-        const player = getMainPlayer();
-        if (player) {
-          const original = field.startPlayerOriginalLocation;
-          try {
-            const dimension = world.getDimension(original.dimensionId);
-            player.teleport(
-              { x: original.x, y: original.y, z: original.z },
-              { dimension },
-            );
-          } catch {
-            // ignore teleport failure on reset
-          }
-        }
-      }
-    }
+    maybeRestorePlayerOnReset(field);
   }
+
   clearField();
+  clearPersistedBedrockBoxField();
   resetState();
+  setGameState(GAME_STATES.READY);
   broadcast("Game reset - use /scriptevent sab:command start to play again.");
+}
+
+export function deleteBedrockBox() {
+  if (
+    getGameState() === GAME_STATES.RUNNING ||
+    getGameState() === GAME_STATES.PAUSED
+  ) {
+    gameTimer.stop();
+    eventQueue.clear();
+    resetBedrockBoxHold();
+    clearBedrockBoxHoldDisplay();
+  }
+
+  const field = getField() ?? loadPersistedBedrockBoxField();
+  if (!field || field.modeId !== "bedrock_box") {
+    broadcast("No BedrockBox to delete.");
+    resetState();
+    setGameState(GAME_STATES.READY);
+    return;
+  }
+
+  if (field.originalBlocks?.length) {
+    const restored = destroyField(field);
+    broadcast(
+      restored
+        ? "BedrockBox deleted and terrain restored."
+        : "BedrockBox removed (terrain restore incomplete).",
+    );
+  } else {
+    broadcast("BedrockBox save cleared (no restore data).");
+  }
+
+  clearField();
+  clearPersistedBedrockBoxField();
+  setBedrockBoxStructureEditEnabled(false);
+  resetState();
+  setGameState(GAME_STATES.READY);
 }
 
 export function getStatusLines() {
   const snapshot = getGameSnapshot();
   const field = getField();
+  const progress =
+    field && snapshot.mode === "bedrock_box"
+      ? getProgress(field, "bedrock_box")
+      : field
+        ? getProgress(field, snapshot.mode)
+        : null;
   return {
     state: snapshot.state,
     mode: snapshot.mode,
@@ -253,6 +357,10 @@ export function getStatusLines() {
     lineLabel: snapshot.lineLabel,
     progress: field ? formatProgressDetailed(field) : "0 / 90 (0%)",
     ratePercent: snapshot.progressRatePercent,
+    bossBar:
+      snapshot.mode === "bedrock_box" && progress
+        ? formatStatusGaugeActionBar(progress)
+        : null,
     queue: snapshot.queueSize,
     bridge: snapshot.bridgeConnected ? "connected" : "disconnected",
   };
@@ -268,6 +376,10 @@ export function maybeNotifyProgress() {
 
   setLastProgressNotifyAt(now);
   const lines = getStatusLines();
+  if (getCurrentMode() === "bedrock_box" && lines.bossBar) {
+    broadcast(lines.bossBar);
+    return;
+  }
   broadcast(
     `Remaining ${lines.remaining} / White wool ${lines.whiteWool} / Target ${lines.required} / Queue ${lines.queue}`,
   );

@@ -8,6 +8,9 @@ const state = {
   bridgeConnected: false,
   lastProgressNotifyAt: 0,
   winResult: null,
+  bedrockBoxStructureEdit: false,
+  bedrockBoxHoldActive: false,
+  bedrockBoxHoldSecondsLeft: 0,
 };
 
 export function getGameState() {
@@ -79,6 +82,45 @@ export function resetState() {
   CONFIG.game.mainPlayerName = null;
   state.winResult = null;
   state.lastProgressNotifyAt = 0;
+  state.bedrockBoxStructureEdit = false;
+  resetBedrockBoxHold();
+}
+
+export function isBedrockBoxHoldActive() {
+  return state.bedrockBoxHoldActive;
+}
+
+export function getBedrockBoxHoldSecondsLeft() {
+  return state.bedrockBoxHoldSecondsLeft;
+}
+
+export function startBedrockBoxHold(seconds) {
+  state.bedrockBoxHoldActive = true;
+  state.bedrockBoxHoldSecondsLeft = seconds;
+}
+
+export function resetBedrockBoxHold() {
+  state.bedrockBoxHoldActive = false;
+  state.bedrockBoxHoldSecondsLeft = 0;
+}
+
+export function tickBedrockBoxHoldCounter() {
+  if (!state.bedrockBoxHoldActive) return -1;
+  state.bedrockBoxHoldSecondsLeft -= 1;
+  return state.bedrockBoxHoldSecondsLeft;
+}
+
+export function isBedrockBoxStructureEditEnabled() {
+  return state.bedrockBoxStructureEdit;
+}
+
+export function setBedrockBoxStructureEditEnabled(enabled) {
+  state.bedrockBoxStructureEdit = enabled;
+}
+
+export function toggleBedrockBoxStructureEdit() {
+  state.bedrockBoxStructureEdit = !state.bedrockBoxStructureEdit;
+  return state.bedrockBoxStructureEdit;
 }
 
 export function canAcceptYoutubeEvents() {

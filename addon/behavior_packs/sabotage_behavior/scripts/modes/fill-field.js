@@ -7,7 +7,12 @@ import {
   getBlockTypeId,
   setBlockSafe,
 } from "../utils/blocks.js";
-import { setField, getField, getCurrentMode } from "../state.js";
+import {
+  setField,
+  getField,
+  getCurrentMode,
+  setCurrentMode,
+} from "../state.js";
 import {
   buildSkyArena,
   formatArenaSummary,
@@ -19,6 +24,15 @@ import {
   formatBedrockBoxSummary,
   teleportPlayerToBedrockBox,
 } from "./bedrock-box.js";
+import {
+  forEachBedrockBoxFillCell,
+  isBedrockBoxFillBlockType,
+} from "./bedrock-box-layers.js";
+import {
+  persistBedrockBoxField,
+  loadPersistedBedrockBoxField,
+  hasPersistedBedrockBoxMeta,
+} from "./field-persistence.js";
 
 /** Floor blocks that may be overwritten when generating the field (ground mode) */
 const REPLACEABLE_FLOOR = new Set([
@@ -166,20 +180,32 @@ export function resetFieldToBase(field) {
 
 function isPlacedFillBlock(field, typeId) {
   if (!typeId || typeId === "minecraft:air") return false;
+  if (field.modeId === "bedrock_box") {
+    return isBedrockBoxFillBlockType(typeId);
+  }
   if (field.acceptAnyFillBlock) {
     return typeId !== field.baseBlock;
   }
   return typeId === field.targetBlock;
 }
 
+function forEachFillCell(field, callback) {
+  if (field.modeId === "bedrock_box") {
+    forEachBedrockBoxFillCell(field, callback);
+    return;
+  }
+  forEachInnerCell(field, (x, blockY, z) => {
+    callback(x, blockY + 1, z);
+  });
+}
+
 function clearPlacedFillBlocks(field) {
   const dimension = getDimension(field);
   if (!dimension) return;
-  forEachInnerCell(field, (x, blockY, z) => {
-    const fillY = blockY + 1;
-    const typeId = getBlockTypeId(dimension, { x, y: fillY, z });
+  forEachFillCell(field, (x, y, z) => {
+    const typeId = getBlockTypeId(dimension, { x, y, z });
     if (isPlacedFillBlock(field, typeId)) {
-      setBlockSafe(dimension, { x, y: fillY, z }, "minecraft:air");
+      setBlockSafe(dimension, { x, y, z }, "minecraft:air");
     }
   });
 }
@@ -216,9 +242,60 @@ export function isFieldStructurePresent(field) {
   return base === field.baseBlock;
 }
 
+function isBedrockBoxStructureLikelyPresent(field) {
+  if (!field?.arena?.enabled || field.modeId !== "bedrock_box") return false;
+
+  const dimension = getDimension(field);
+  if (!dimension) return false;
+
+  const innerFloor = getBlockTypeId(dimension, {
+    x: field.originX + 1,
+    y: field.y,
+    z: field.originZ + 1,
+  });
+  const floorOk =
+    innerFloor === field.baseBlock ||
+    innerFloor === CONFIG.bedrockBox.floorBlock;
+  if (!floorOk) return false;
+
+  const expectedWall = CONFIG.bedrockBox.wallBlock;
+  const mid = Math.floor((field.arena.size ?? CONFIG.bedrockBox.arenaSize) / 2);
+  const wallSamples = [
+    {
+      x: field.arena.originX,
+      y: field.arena.y + 1,
+      z: field.arena.originZ + mid,
+    },
+    {
+      x: field.arena.originX + mid,
+      y: field.arena.y + 1,
+      z: field.arena.originZ,
+    },
+    {
+      x: field.arena.originX + (field.arena.size ?? 1) - 1,
+      y: field.arena.y + 1,
+      z: field.arena.originZ + mid,
+    },
+  ];
+
+  return wallSamples.some(
+    (location) => getBlockTypeId(dimension, location) === expectedWall,
+  );
+}
+
+export function isBedrockBoxPresent(field) {
+  if (!field || field.modeId !== "bedrock_box") return false;
+  return (
+    isFieldStructurePresent(field) || isBedrockBoxStructureLikelyPresent(field)
+  );
+}
+
 export function canReuseField(field, modeId = getCurrentMode()) {
-  if (!field?.originalBlocks?.length) return false;
-  if (field.modeId !== modeId) return false;
+  if (!field || field.modeId !== modeId) return false;
+  if (modeId === "bedrock_box") {
+    return isBedrockBoxPresent(field);
+  }
+  if (!field.originalBlocks?.length) return false;
   return isFieldStructurePresent(field);
 }
 
@@ -228,20 +305,118 @@ export function prepareFieldForReuse(field) {
   return field;
 }
 
+function getBedrockBoxCenter(field) {
+  const structureSize = field.structureSize ?? 13;
+  return {
+    x: field.originX + structureSize / 2,
+    y: field.y + 1,
+    z: field.originZ + structureSize / 2,
+  };
+}
+
+/** True when a player is close enough that block reads at the box are reliable. */
+function isBedrockBoxChunksLikelyLoaded(field) {
+  const center = getBedrockBoxCenter(field);
+  const loadRadius = 96;
+
+  for (const player of world.getAllPlayers()) {
+    if (player.dimension.id !== field.dimensionId) continue;
+    const dx = player.location.x - center.x;
+    const dy = player.location.y - center.y;
+    const dz = player.location.z - center.z;
+    if (dx * dx + dy * dy + dz * dz <= loadRadius * loadRadius) {
+      return true;
+    }
+  }
+
+  return world.getAllPlayers().length === 0;
+}
+
+function findBedrockBoxFieldCandidate() {
+  const inMemory = getField();
+  if (inMemory?.modeId === "bedrock_box") {
+    return inMemory;
+  }
+  return loadPersistedBedrockBoxField();
+}
+
+function resolveReusableBedrockBoxField() {
+  const candidate = findBedrockBoxFieldCandidate();
+  if (!candidate) return null;
+
+  if (isBedrockBoxPresent(candidate)) {
+    return candidate;
+  }
+
+  if (!isBedrockBoxChunksLikelyLoaded(candidate)) {
+    return candidate;
+  }
+
+  return null;
+}
+
+export function restorePersistedBedrockBoxField() {
+  if (!hasPersistedBedrockBoxMeta()) return false;
+
+  const field = loadPersistedBedrockBoxField();
+  if (!field) return false;
+
+  setField(field);
+  setCurrentMode("bedrock_box");
+
+  if (isBedrockBoxPresent(field)) {
+    console.warn("[SAB] Restored persisted BedrockBox (structure verified).");
+    return true;
+  }
+
+  if (isBedrockBoxChunksLikelyLoaded(field)) {
+    console.warn(
+      "[SAB] Persisted BedrockBox loaded but structure not found nearby.",
+    );
+    return true;
+  }
+
+  console.warn(
+    "[SAB] Restored BedrockBox coordinates (box area not loaded yet).",
+  );
+  return true;
+}
+
 export function buildField(player, modeId = getCurrentMode()) {
-  const existing = getField();
-  if (existing?.originalBlocks?.length && isFieldStructurePresent(existing)) {
-    if (existing.modeId === modeId) {
+  if (modeId === "bedrock_box") {
+    const existing = resolveReusableBedrockBoxField();
+    if (existing) {
       const cfg = getModeConfig(modeId);
       existing.acceptAnyFillBlock = cfg.acceptAnyFillBlock ?? false;
       prepareFieldForReuse(existing);
       existing.reused = true;
       setField(existing);
+      persistBedrockBoxField(existing);
       return existing;
     }
-    return {
-      error: "Field already exists. Run reset before starting another mode.",
-    };
+
+    const stale = findBedrockBoxFieldCandidate();
+    if (stale) {
+      return {
+        error:
+          "Existing BedrockBox data found but the structure is missing or damaged. Use menu 箱を削除 first.",
+      };
+    }
+  } else {
+    const existing = getField();
+    if (existing?.originalBlocks?.length && isFieldStructurePresent(existing)) {
+      if (existing.modeId === modeId) {
+        const cfg = getModeConfig(modeId);
+        existing.acceptAnyFillBlock = cfg.acceptAnyFillBlock ?? false;
+        prepareFieldForReuse(existing);
+        existing.reused = true;
+        setField(existing);
+        return existing;
+      }
+      return {
+        error: "Field already exists. Run reset before starting another mode.",
+      };
+    }
   }
 
   let field;
@@ -259,6 +434,9 @@ export function buildField(player, modeId = getCurrentMode()) {
 
   field.reused = false;
   setField(field);
+  if (modeId === "bedrock_box") {
+    persistBedrockBoxField(field);
+  }
   return field;
 }
 
@@ -276,9 +454,8 @@ export function countWhiteWool(field) {
   const dimension = getDimension(field);
   if (!dimension) return 0;
   let count = 0;
-  forEachInnerCell(field, (x, blockY, z) => {
-    const fillY = blockY + 1;
-    if (isPlacedFillBlock(field, getBlockTypeId(dimension, { x, y: fillY, z }))) {
+  forEachFillCell(field, (x, y, z) => {
+    if (isPlacedFillBlock(field, getBlockTypeId(dimension, { x, y, z }))) {
       count += 1;
     }
   });
@@ -293,10 +470,9 @@ export function getWoolPositions(field) {
   if (!field) return positions;
   const dimension = getDimension(field);
   if (!dimension) return positions;
-  forEachInnerCell(field, (x, blockY, z) => {
-    const fillY = blockY + 1;
-    if (isPlacedFillBlock(field, getBlockTypeId(dimension, { x, y: fillY, z }))) {
-      positions.push({ x, y: fillY, z });
+  forEachFillCell(field, (x, y, z) => {
+    if (isPlacedFillBlock(field, getBlockTypeId(dimension, { x, y, z }))) {
+      positions.push({ x, y, z });
     }
   });
   return positions;

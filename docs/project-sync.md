@@ -4,7 +4,7 @@
 > 人間向けの概要は [README.md](../README.md)、配信向け説明は [worldview.md](./worldview.md)。
 
 <!-- sync:auto:meta:start -->
-最終更新の想定リポジトリ: `hakonikomoru/sabotage-minecraft`（`main`・`1e480bc`・2026-06-12・`npm run sync:project-docs` 自動反映）
+最終更新の想定リポジトリ: `hakonikomoru/sabotage-minecraft`（`main`・`da0528f`・2026-06-12・`npm run sync:project-docs` 自動反映）
 <!-- sync:auto:meta:end -->
 
 ---
@@ -124,6 +124,15 @@ SabotageEvent          // Minecraft へ渡す最終イベント
 |-----------|--------|------|----------|-----------|
 | `fill_challenge` | 10分ブロック埋めチャレンジ | `!sab start` | 90 個（90%）到達の**瞬間** | `on_reach` |
 | `fill_and_defend` | ブロック埋め防衛チャレンジ | `!sab start defend` | **10 分終了時** 90 個以上キープ | `on_time_up` |
+| `bedrock_box` | BedrockBox | `!sab start box` / メニュー「開始」 | 内側 11×11×9 を規定数まで埋める | `on_reach` |
+
+### BedrockBox（箱の永続化）
+
+- **開始時** — ワールド内に前回の箱が残っていれば **再生成せず流用**（メモリ or ワールド Dynamic Property）
+- **サーバー再起動後** — `field-persistence.js` が保存座標を読み込み、構造が残っていれば `getField()` に復元
+- **リセット** — ゲーム状態と配置ブロックのみクリア。**箱は残す**
+- **箱を削除** — メニュー「箱を削除」または `!sab deletebox` で地形復元 + 永続データ削除（意図的な削除のみ箱が消える）
+- 新しい場所に箱を作るには、先に「箱を削除」してから開始
 
 ### フィールド（共通）
 
@@ -144,8 +153,8 @@ SabotageEvent          // Minecraft へ渡す最終イベント
 ### 管理コマンド（`!sab`）
 
 ```txt
-start | start defend | mode [id] | stop | pause | resume
-status | clear | reset | test <slow|blind|chicken|hole|block>
+start | start defend | start box | mode [id] | stop | pause | resume
+status | clear | reset | deletebox | test <slow|blind|chicken|hole|block>
 ```
 
 将来: 名前付きアイテム `SAB:menu`, `SAB:start`, …（[game-design.md](./game-design.md)）
@@ -210,7 +219,10 @@ sabotage-minecraft/
 │       ├── modes/
 │       │   ├── arena-builder.js
 │       │   ├── arena.js
+│       │   ├── bedrock-box-layers.js
+│       │   ├── bedrock-box-protection.js
 │       │   ├── bedrock-box.js
+│       │   ├── field-persistence.js
 │       │   ├── fill-and-defend.js
 │       │   ├── fill-challenge.js
 │       │   ├── fill-field.js
@@ -220,12 +232,14 @@ sabotage-minecraft/
 │       ├── state.js
 │       ├── timer.js
 │       ├── ui/
+│       │   ├── chat-display.js
 │       │   └── menu-item.js
-│       └── utils/
-│           ├── blocks.js
-│           ├── logger.js
-│           ├── players.js
-│           └── random.js
+│       ├── utils/
+│       │   ├── blocks.js
+│       │   ├── logger.js
+│       │   ├── players.js
+│       │   └── random.js
+│       └── world-player-settings.js
 ├── bridge/
 │   ├── package-lock.json
 │   ├── package.json

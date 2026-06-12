@@ -65,11 +65,16 @@ export const config = {
     enableSuperChatEvents: process.env.ENABLE_SUPER_CHAT_EVENTS === "true",
     enableMemberEvents: process.env.ENABLE_MEMBER_EVENTS === "true",
     enableTwitchChat: process.env.ENABLE_TWITCH_CHAT === "true",
+    enableTwitchChatDisplay:
+      process.env.ENABLE_TWITCH_CHAT_DISPLAY !== "false",
     enableChannelPointEvents:
       process.env.ENABLE_CHANNEL_POINT_EVENTS === "true",
     enableCheerEvents: process.env.ENABLE_CHEER_EVENTS === "true",
     enableSubscribeEvents: process.env.ENABLE_SUBSCRIBE_EVENTS === "true",
     enableFollowEvents: process.env.ENABLE_FOLLOW_EVENTS === "true",
+    /** When true, Twitch events map to box_* commands (BedrockBox). When false, legacy fill !commands. */
+    enableBedrockBoxTwitch:
+      process.env.ENABLE_BEDROCK_BOX_TWITCH !== "false",
     enableMediumEffects: process.env.ENABLE_MEDIUM_EFFECTS === "true",
     enableStrongEffects: process.env.ENABLE_STRONG_EFFECTS === "true",
   },
@@ -79,6 +84,8 @@ export const config = {
   queue: {
     maxSize: 50,
     maxEventsPerPoll: 5,
+    maxChatQueueSize: 100,
+    maxChatEventsPerPoll: 10,
   },
 } as const;
 

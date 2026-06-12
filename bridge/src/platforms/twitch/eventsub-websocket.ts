@@ -4,10 +4,6 @@ import { twitchLog } from "./logger.js";
 import type { TwitchTokenStore } from "./token-store.js";
 
 const HELIX_EVENTSUB_URL = "https://api.twitch.tv/helix/eventsub/subscriptions";
-const CHAT_MESSAGE_SUBSCRIPTION = {
-  type: "channel.chat.message",
-  version: "1",
-} as const;
 
 type EventSubMetadata = {
   message_id: string;
@@ -52,7 +48,19 @@ type EventSubRevocationPayload = {
 
 export type TwitchEventSubHandlers = {
   onChatMessage: (event: Record<string, unknown>) => void;
+  onFollow?: (event: Record<string, unknown>) => void;
+  onSubscribe?: (event: Record<string, unknown>) => void;
+  onGiftSub?: (event: Record<string, unknown>) => void;
+  onCheer?: (event: Record<string, unknown>) => void;
+  onChannelPoint?: (event: Record<string, unknown>) => void;
   onDisconnected?: () => void;
+};
+
+type SubscriptionSpec = {
+  type: string;
+  version: string;
+  condition: Record<string, string>;
+  enabled: boolean;
 };
 
 export class TwitchEventSubWebSocket {
@@ -90,6 +98,62 @@ export class TwitchEventSubWebSocket {
 
   isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN && this.subscribed;
+  }
+
+  private getSubscriptionSpecs(): SubscriptionSpec[] {
+    const { broadcasterUserId, userId } = this.ids;
+    return [
+      {
+        type: "channel.chat.message",
+        version: "1",
+        condition: {
+          broadcaster_user_id: broadcasterUserId,
+          user_id: userId,
+        },
+        enabled: config.safety.enableTwitchChat,
+      },
+      {
+        type: "channel.follow",
+        version: "2",
+        condition: {
+          broadcaster_user_id: broadcasterUserId,
+          moderator_user_id: userId,
+        },
+        enabled: config.safety.enableFollowEvents,
+      },
+      {
+        type: "channel.subscribe",
+        version: "1",
+        condition: {
+          broadcaster_user_id: broadcasterUserId,
+        },
+        enabled: config.safety.enableSubscribeEvents,
+      },
+      {
+        type: "channel.subscription.gift",
+        version: "1",
+        condition: {
+          broadcaster_user_id: broadcasterUserId,
+        },
+        enabled: config.safety.enableSubscribeEvents,
+      },
+      {
+        type: "channel.channel_points_custom_reward_redemption.add",
+        version: "1",
+        condition: {
+          broadcaster_user_id: broadcasterUserId,
+        },
+        enabled: config.safety.enableChannelPointEvents,
+      },
+      {
+        type: "channel.cheer",
+        version: "1",
+        condition: {
+          broadcaster_user_id: broadcasterUserId,
+        },
+        enabled: config.safety.enableCheerEvents,
+      },
+    ];
   }
 
   private async connect(url: string): Promise<void> {
@@ -164,9 +228,16 @@ export class TwitchEventSubWebSocket {
     twitchLog.info("EventSub session received.");
     this.resetKeepalive(payload.session.keepalive_timeout_seconds ?? 10);
 
-    await this.subscribeChatMessages(this.sessionId);
-    this.subscribed = true;
-    twitchLog.info("Subscribed to channel.chat.message.");
+    const specs = this.getSubscriptionSpecs().filter((spec) => spec.enabled);
+    for (const spec of specs) {
+      await this.createSubscription(this.sessionId, spec);
+      twitchLog.info(`Subscribed to ${spec.type}.`);
+    }
+
+    this.subscribed = specs.length > 0;
+    if (!this.subscribed) {
+      twitchLog.warn("No EventSub subscriptions enabled — check ENABLE_* flags.");
+    }
   }
 
   private async handleReconnect(payload: EventSubReconnectPayload): Promise<void> {
@@ -178,10 +249,31 @@ export class TwitchEventSubWebSocket {
   }
 
   private handleNotification(payload: EventSubNotificationPayload): void {
-    if (payload.subscription.type !== CHAT_MESSAGE_SUBSCRIPTION.type) {
-      return;
+    const type = payload.subscription.type;
+    const event = payload.event;
+
+    switch (type) {
+      case "channel.chat.message":
+        this.handlers.onChatMessage(event);
+        break;
+      case "channel.follow":
+        this.handlers.onFollow?.(event);
+        break;
+      case "channel.subscribe":
+        this.handlers.onSubscribe?.(event);
+        break;
+      case "channel.subscription.gift":
+        this.handlers.onGiftSub?.(event);
+        break;
+      case "channel.cheer":
+        this.handlers.onCheer?.(event);
+        break;
+      case "channel.channel_points_custom_reward_redemption.add":
+        this.handlers.onChannelPoint?.(event);
+        break;
+      default:
+        twitchLog.warn(`Unhandled EventSub notification: ${type}`);
     }
-    this.handlers.onChatMessage(payload.event);
   }
 
   private handleRevocation(payload: EventSubRevocationPayload): void {
@@ -191,14 +283,14 @@ export class TwitchEventSubWebSocket {
     this.subscribed = false;
   }
 
-  private async subscribeChatMessages(sessionId: string): Promise<void> {
+  private async createSubscription(
+    sessionId: string,
+    spec: SubscriptionSpec,
+  ): Promise<void> {
     const body = {
-      type: CHAT_MESSAGE_SUBSCRIPTION.type,
-      version: CHAT_MESSAGE_SUBSCRIPTION.version,
-      condition: {
-        broadcaster_user_id: this.ids.broadcasterUserId,
-        user_id: this.ids.userId,
-      },
+      type: spec.type,
+      version: spec.version,
+      condition: spec.condition,
       transport: {
         method: "websocket",
         session_id: sessionId,
@@ -218,18 +310,18 @@ export class TwitchEventSubWebSocket {
     );
 
     if (response.status === 409) {
-      twitchLog.info("channel.chat.message subscription already exists.");
+      twitchLog.info(`${spec.type} subscription already exists.`);
       return;
     }
 
     if (response.status === 429) {
-      throw new Error("EventSub subscription rate limited (429)");
+      throw new Error(`EventSub subscription rate limited (429): ${spec.type}`);
     }
 
     if (!response.ok) {
       const detail = await response.text();
       throw new Error(
-        `EventSub subscription failed (${response.status}): ${detail}`,
+        `EventSub subscription failed for ${spec.type} (${response.status}): ${detail}`,
       );
     }
   }

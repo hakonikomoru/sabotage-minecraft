@@ -25,7 +25,7 @@ export function checkFillChallengeProgress() {
   return progress;
 }
 
-export function finishFillChallenge(playerWon) {
+export function finishFillChallenge(playerWon, { announce = true } = {}) {
   if (getGameState() === GAME_STATES.FINISHED) {
     return;
   }
@@ -33,6 +33,8 @@ export function finishFillChallenge(playerWon) {
   eventQueue.clear();
   setGameState(GAME_STATES.FINISHED);
   setWinResult(playerWon ? "player" : "viewers");
+
+  if (!announce) return;
 
   if (playerWon) {
     broadcast("Player win! Target reached.");

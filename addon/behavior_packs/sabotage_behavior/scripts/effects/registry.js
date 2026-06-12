@@ -57,6 +57,56 @@ export const EFFECT_REGISTRY = {
     enabled: false,
     cooldownSeconds: 90,
   },
+
+  box_comment_first: {
+    command: "box_comment_first",
+    category: "field",
+    risk: "safe",
+    enabled: true,
+    cooldownSeconds: 0,
+  },
+  box_comment_repeat: {
+    command: "box_comment_repeat",
+    category: "support",
+    risk: "safe",
+    enabled: true,
+    cooldownSeconds: 0,
+  },
+  box_follow: {
+    command: "box_follow",
+    category: "field",
+    risk: "medium",
+    enabled: true,
+    cooldownSeconds: 0,
+  },
+  box_subscribe: {
+    command: "box_subscribe",
+    category: "field",
+    risk: "dangerous",
+    enabled: true,
+    cooldownSeconds: 0,
+  },
+  box_channel_point: {
+    command: "box_channel_point",
+    category: "field",
+    risk: "medium",
+    enabled: true,
+    cooldownSeconds: 0,
+  },
+  box_bits: {
+    command: "box_bits",
+    category: "field",
+    risk: "medium",
+    enabled: true,
+    cooldownSeconds: 0,
+  },
+  box_gift_sub: {
+    command: "box_gift_sub",
+    category: "field",
+    risk: "dangerous",
+    enabled: true,
+    cooldownSeconds: 0,
+  },
 };
 
 export function getEffectDefinition(command) {
@@ -66,6 +116,9 @@ export function getEffectDefinition(command) {
 export function isEffectRunnable(command) {
   const def = getEffectDefinition(command);
   if (!def?.enabled) return false;
+  if (command.startsWith("box_")) {
+    return true;
+  }
   if (def.risk === "dangerous" && !CONFIG.safety.enableStrongEffects) {
     return false;
   }

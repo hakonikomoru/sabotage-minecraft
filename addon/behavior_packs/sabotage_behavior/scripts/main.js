@@ -3,6 +3,7 @@ import { CONFIG, GAME_STATES } from "./config.js";
 import {
   getGameState,
   setGameState,
+  getField,
   updateBridgeConnected,
   canAcceptYoutubeEvents,
 } from "./state.js";
@@ -13,12 +14,15 @@ import {
   handleSabCommand,
 } from "./command-router.js";
 import { registerMenuItem } from "./ui/menu-item.js";
+import { registerStatusGauge } from "./ui/status-gauge.js";
+import { registerTntQueueTicker } from "./effects/tnt-queue.js";
 import { gameTimer } from "./timer.js";
 import { eventQueue } from "./event-queue.js";
 import {
   checkProgress,
   maybeNotifyProgress,
 } from "./modes/mode-manager.js";
+import { tickBedrockBoxHold } from "./modes/bedrock-box-win.js";
 import {
   fetchPendingEvents,
   ackEvents,
@@ -26,6 +30,12 @@ import {
 } from "./integrations/bridge-client.js";
 import { broadcast } from "./effects/visual-effects.js";
 import { logOk } from "./utils/logger.js";
+import { registerBedrockBoxPlaceHandler } from "./modes/bedrock-box-layers.js";
+import { registerBedrockBoxProtection } from "./modes/bedrock-box-protection.js";
+import { registerWorldPlayerSettings } from "./world-player-settings.js";
+import { showStreamChat } from "./ui/chat-display.js";
+import { restorePersistedBedrockBoxField } from "./modes/fill-field.js";
+import { hasPersistedBedrockBoxMeta } from "./modes/field-persistence.js";
 
 console.warn("[SAB] sabotage-minecraft addon loaded");
 
@@ -63,6 +73,11 @@ async function pollBridge() {
 
     const ackIds = [];
     for (const event of events) {
+      if (event.type === "chat") {
+        showStreamChat(event);
+        ackIds.push(event.id);
+        continue;
+      }
       if (event.type === "system") {
         handleSystemEvent(event);
         ackIds.push(event.id);
@@ -90,6 +105,19 @@ async function pollBridge() {
   }
 }
 
+function registerBedrockBoxRestoreOnJoin() {
+  const spawnEvent = world.afterEvents?.playerSpawn;
+  if (!spawnEvent) return;
+
+  spawnEvent.subscribe(() => {
+    system.run(() => {
+      if (getField()?.modeId === "bedrock_box") return;
+      if (!hasPersistedBedrockBoxMeta()) return;
+      restorePersistedBedrockBoxField();
+    });
+  });
+}
+
 function bootstrap() {
   try {
     world.setDifficulty(Difficulty.Peaceful);
@@ -102,7 +130,14 @@ function bootstrap() {
   lockWorldDaytime();
 
   registerChatCommands();
+  registerWorldPlayerSettings();
+  registerBedrockBoxPlaceHandler();
+  registerBedrockBoxProtection();
   registerMenuItem((player, args) => handleSabCommand(player, args));
+  registerStatusGauge();
+  registerTntQueueTicker();
+  registerBedrockBoxRestoreOnJoin();
+  restorePersistedBedrockBoxField();
   setGameState(GAME_STATES.READY);
 
   system.runInterval(() => {
@@ -117,6 +152,7 @@ function bootstrap() {
     system.run(() => {
       if (getGameState() === GAME_STATES.RUNNING) {
         gameTimer.tick();
+        tickBedrockBoxHold();
         checkProgress();
         maybeNotifyProgress();
       }

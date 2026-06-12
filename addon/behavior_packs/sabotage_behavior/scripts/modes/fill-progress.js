@@ -14,8 +14,9 @@ import { MODE_DISPLAY_NAMES } from "../config.js";
 export function getProgress(field, modeId = getCurrentMode()) {
   const cfg = getModeConfig(modeId);
   const placed = countWhiteWool(field);
-  const required = cfg.requiredCount;
   const total = cfg.totalCells;
+  const required =
+    modeId === "bedrock_box" ? total : cfg.requiredCount;
   const rate = total > 0 ? placed / total : 0;
   return {
     placed,
@@ -24,16 +25,21 @@ export function getProgress(field, modeId = getCurrentMode()) {
     rate,
     ratePercent: Math.floor(rate * 100),
     isComplete: placed >= required,
+    isFullyFilled: placed >= total,
     winTiming: cfg.winTiming,
   };
 }
 
 export function shouldWinOnProgress(progress, modeId = getCurrentMode()) {
+  if (modeId === "bedrock_box") {
+    return false;
+  }
   const cfg = getModeConfig(modeId);
   return cfg.winTiming === "on_reach" && progress.isComplete;
 }
 
 export function getLineLabel(modeId = getCurrentMode()) {
+  if (modeId === "bedrock_box") return "Box fill";
   return modeId === "fill_and_defend" ? "Defend line" : "Target line";
 }
 
@@ -62,7 +68,9 @@ export function getGameSnapshot() {
     remainingSeconds: gameTimer.isActive() ? gameTimer.getRemainingSeconds() : 0,
     remainingFormatted: gameTimer.isActive()
       ? gameTimer.formatRemaining()
-      : "--:--",
+      : cfg.unlimitedTime
+        ? "Unlimited"
+        : "--:--",
     whiteWoolCount: progress?.placed ?? 0,
     totalCells: cfg.totalCells,
     requiredCount: cfg.requiredCount,

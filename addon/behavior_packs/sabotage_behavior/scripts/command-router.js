@@ -15,6 +15,7 @@ import {
   startCurrentMode,
   stopGame,
   resetGame,
+  deleteBedrockBox,
   checkProgress,
   getStatusLines,
   switchMode,
@@ -102,11 +103,19 @@ export async function handleSabCommand(player, args) {
     case "status": {
       const lines = getStatusLines();
       broadcast(`State: ${lines.state}`);
-      broadcast(`Mode: ${lines.mode}`);
-      broadcast(`Remaining: ${lines.remaining}`);
-      broadcast(`White wool: ${lines.whiteWool} / ${lines.total}`);
-      broadcast(`Target: ${lines.required}`);
-      broadcast(`Progress: ${lines.ratePercent}%`);
+      broadcast(`Mode: ${lines.modeDisplayName ?? lines.mode}`);
+      if (lines.mode === "bedrock_box") {
+        if (lines.bossBar) {
+          broadcast(lines.bossBar);
+        }
+        broadcast(`Fill: ${lines.progress}`);
+        broadcast(`Goal: ${lines.required} blocks (${lines.ratePercent}%)`);
+      } else {
+        broadcast(`Remaining: ${lines.remaining}`);
+        broadcast(`White wool: ${lines.whiteWool} / ${lines.total}`);
+        broadcast(`Target: ${lines.required}`);
+        broadcast(`Progress: ${lines.ratePercent}%`);
+      }
       broadcast(`Queue: ${lines.queue}`);
       broadcast(`Bridge: ${lines.bridge}`);
       checkProgress();
@@ -126,6 +135,14 @@ export async function handleSabCommand(player, args) {
         return;
       }
       resetGame();
+      break;
+    case "deletebox":
+    case "delete-box":
+      if (!isAdmin(player)) {
+        denyAdmin(player);
+        return;
+      }
+      deleteBedrockBox();
       break;
     case "menu":
     case "wand":
@@ -169,7 +186,7 @@ export async function handleSabCommand(player, args) {
     }
     default:
       broadcast(
-        "Usage: /scriptevent sab:command start|start defend|start box|mode|stop|pause|resume|status|clear|reset|menu|test",
+        "Usage: /scriptevent sab:command start|start defend|start box|mode|stop|pause|resume|status|clear|reset|deletebox|menu|test",
       );
   }
 }

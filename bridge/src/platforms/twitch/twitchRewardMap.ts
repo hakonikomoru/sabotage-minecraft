@@ -6,7 +6,12 @@ export type TwitchRewardMapping = {
   tier: SabotageEventTier;
 };
 
-/** rewardId 優先、なければ rewardTitle で照合 */
+/**
+ * Fill Challenge 用の報酬タイトルマップ。
+ * BedrockBox では ENABLE_BEDROCK_BOX_TWITCH=true 時に channelPoint は
+ * 常に box_channel_point へ（報酬名・reward_id 不問）。
+ * TODO: reward_id / rewardTitle 別分岐をここに追加可能。
+ */
 export const twitchRewardMap: Record<string, TwitchRewardMapping> = {
   "妨害：暗闇": {
     command: "blind",

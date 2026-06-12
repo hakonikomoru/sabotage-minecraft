@@ -5,7 +5,14 @@ const TWITCH_TOKEN_URL = "https://id.twitch.tv/oauth2/token";
 const TWITCH_VALIDATE_URL = "https://id.twitch.tv/oauth2/validate";
 const TWITCH_HELIX_USERS_URL = "https://api.twitch.tv/helix/users";
 
-const TWITCH_CHAT_SCOPES = ["user:read:chat"];
+/** Scopes for BedrockBox Twitch EventSub MVP. Re-OAuth required after scope changes. */
+const TWITCH_SCOPES = [
+  "user:read:chat",
+  "moderator:read:followers",
+  "channel:read:subscriptions",
+  "channel:read:redemptions",
+  "bits:read",
+];
 
 export type TwitchTokenResponse = {
   access_token: string;
@@ -26,7 +33,7 @@ export function getTwitchAuthUrl(): string {
     client_id: config.twitch.clientId,
     redirect_uri: config.twitch.redirectUri,
     response_type: "code",
-    scope: TWITCH_CHAT_SCOPES.join(" "),
+    scope: TWITCH_SCOPES.join(" "),
   });
   return `${TWITCH_AUTH_URL}?${params.toString()}`;
 }

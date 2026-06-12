@@ -218,9 +218,17 @@ export function registerRoutes(
           reply.type("text/plain; charset=utf-8");
           return `Twitch OAuth completed.
 
+Scopes granted: ${validated.scopes.join(", ") || "(none)"}
+If follow/sub/bits/channel-points fail, re-run /auth/twitch after scope updates.
+
 Copy the following values to bridge/.env:
 
 ENABLE_TWITCH_CHAT=true
+ENABLE_BEDROCK_BOX_TWITCH=true
+ENABLE_FOLLOW_EVENTS=true
+ENABLE_SUBSCRIBE_EVENTS=true
+ENABLE_CHANNEL_POINT_EVENTS=true
+ENABLE_CHEER_EVENTS=true
 TWITCH_ACCESS_TOKEN=${tokens.access_token}
 TWITCH_REFRESH_TOKEN=${tokens.refresh_token ?? ""}
 TWITCH_USER_ID=${validated.userId}

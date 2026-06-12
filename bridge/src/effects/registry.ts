@@ -19,6 +19,8 @@ export type EffectDefinition = {
   tier: SabotageEventTier;
   enabled: boolean;
   cooldownSeconds: number;
+  /** Skip per-user cooldown (e.g. box_comment_* fires on every chat message). */
+  skipUserCooldown?: boolean;
 };
 
 export const EFFECT_REGISTRY: Record<string, EffectDefinition> = {
@@ -256,6 +258,74 @@ export const EFFECT_REGISTRY: Record<string, EffectDefinition> = {
     enabled: false,
     cooldownSeconds: 60,
   },
+
+  // BedrockBox — Twitch EventSub MVP
+  box_comment_first: {
+    command: "box_comment_first",
+    category: "field",
+    risk: "safe",
+    type: "sabotage",
+    tier: "weak",
+    enabled: true,
+    cooldownSeconds: 1,
+    skipUserCooldown: true,
+  },
+  box_comment_repeat: {
+    command: "box_comment_repeat",
+    category: "support",
+    risk: "safe",
+    type: "support",
+    tier: "weak",
+    enabled: true,
+    cooldownSeconds: 1,
+    skipUserCooldown: true,
+  },
+  box_follow: {
+    command: "box_follow",
+    category: "field",
+    risk: "medium",
+    type: "sabotage",
+    tier: "medium",
+    enabled: true,
+    cooldownSeconds: 0,
+  },
+  box_subscribe: {
+    command: "box_subscribe",
+    category: "field",
+    risk: "dangerous",
+    type: "sabotage",
+    tier: "strong",
+    enabled: true,
+    cooldownSeconds: 0,
+  },
+  box_channel_point: {
+    command: "box_channel_point",
+    category: "field",
+    risk: "medium",
+    type: "sabotage",
+    tier: "medium",
+    enabled: true,
+    cooldownSeconds: 2,
+  },
+  box_bits: {
+    command: "box_bits",
+    category: "field",
+    risk: "medium",
+    type: "sabotage",
+    tier: "medium",
+    enabled: true,
+    cooldownSeconds: 0,
+    skipUserCooldown: true,
+  },
+  box_gift_sub: {
+    command: "box_gift_sub",
+    category: "field",
+    risk: "dangerous",
+    type: "sabotage",
+    tier: "strong",
+    enabled: true,
+    cooldownSeconds: 0,
+  },
 };
 
 export const MVP_COMMAND_NAMES = Object.entries(EFFECT_REGISTRY)
@@ -277,6 +347,12 @@ export function isEffectAllowed(def: EffectDefinition): boolean {
   return true;
 }
 
+const BEDROCK_BOX_COMMAND_PREFIX = "box_";
+
+export function isBedrockBoxEffect(command: string): boolean {
+  return command.startsWith(BEDROCK_BOX_COMMAND_PREFIX);
+}
+
 export function isEffectAllowedBySafety(
   def: EffectDefinition,
   safety: {
@@ -285,6 +361,7 @@ export function isEffectAllowedBySafety(
   },
 ): boolean {
   if (!isEffectAllowed(def)) return false;
+  if (isBedrockBoxEffect(def.command)) return true;
   if (def.risk === "dangerous" && !safety.enableStrongEffects) return false;
   if (def.risk === "medium" && !safety.enableMediumEffects) return false;
   return true;
